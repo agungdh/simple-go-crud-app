@@ -16,6 +16,16 @@ autentikasi, atau logika bisnis.
 go run .
 ```
 
+Atau lewat Makefile (default menampilkan help):
+
+```bash
+make              # daftar target
+make build        # bin/adminlte-demo
+make run          # go run . (bisa: make run ARGS="-addr :3000")
+make build-prod   # binary statis + stripped untuk distribusi
+make clean        # hapus folder bin/
+```
+
 Buka <http://localhost:8080>. Root `/` langsung menampilkan Dashboard v1.
 
 Opsi yang tersedia:
