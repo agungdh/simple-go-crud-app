@@ -4,6 +4,9 @@ Replika UI lengkap **AdminLTE 2.4.18** yang dirender memakai Go `html/template`
 dengan satu layout bersama. Semua aset (CSS, JS, font, gambar, plugin) disajikan
 secara lokal oleh server Go — tidak butuh koneksi ke CDN untuk aset utama.
 
+Template dan aset di-embed ke dalam binary memakai `go:embed`, jadi hasil build
+berupa **satu file yang bisa langsung dibagikan** tanpa folder `web/`.
+
 Cakupan saat ini: **UI/demo statis** (37 halaman). Belum ada database, CRUD,
 autentikasi, atau logika bisnis.
 
@@ -19,15 +22,22 @@ Opsi yang tersedia:
 
 ```bash
 go run . -addr :3000     # ganti port
-go run . -web web        # lokasi folder template + static
-go run . -dev=false      # cache template (default -dev=true, reload tiap request)
 ```
 
-Build binary:
+Build binary mandiri:
 
 ```bash
-go build -o adminlte-demo .
+CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o adminlte-demo .
 ./adminlte-demo -addr :8080
+```
+
+Binary sudah berisi seluruh template dan aset; tidak perlu menyalin folder
+`web/` ke mesin tujuan. Build untuk platform lain:
+
+```bash
+CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build -o adminlte-demo-linux .
+CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o adminlte-demo.exe .
+CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64 go build -o adminlte-demo-mac .
 ```
 
 ## Struktur
@@ -35,8 +45,9 @@ go build -o adminlte-demo .
 ```
 main.go                     entrypoint + flag
 internal/pages/pages.go     registry 37 halaman (route, layout, title, sidebar, dll.)
-internal/render/render.go   loader/cache template + template funcs
-internal/router/router.go   routing chi, mount aset statis, handler 404
+internal/render/render.go   loader/cache template dari embed.FS + template funcs
+internal/router/router.go   routing chi, mount aset embedded, handler 404
+web/assets.go               //go:embed templates + static
 web/templates/layouts/      main.html, topnav.html, standalone.html
 web/templates/partials/     header (default/compact/starter), sidebar, control-sidebar, footer
 web/templates/pages/        konten tiap halaman
@@ -72,7 +83,9 @@ Route yang tidak dikenal mengembalikan **HTTP 404** dengan halaman 404 AdminLTE.
 
 - URL aset dan link dinormalisasi ke path absolut (`/dist/...`, `/plugins/...`,
   `/bower_components/...`) sehingga bisa diakses dari route mana pun.
+- Template di-parse sekali lalu di-cache; perubahan template/aset memerlukan
+  build ulang karena sudah di-embed.
 - `html/template` menghapus komentar HTML/JS saat render. Ini tidak mengubah
   tampilan maupun perilaku halaman.
 - Ukuran repo bertambah sekitar 66 MB karena aset AdminLTE disalin ke
-  `web/static/`.
+  `web/static/`; binary hasil build juga membesar sesuai ukuran aset.

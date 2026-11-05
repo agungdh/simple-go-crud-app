@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"os"
-	"path/filepath"
+	"io/fs"
 	"strings"
 	"sync"
 
@@ -15,20 +14,22 @@ import (
 
 // Renderer loads and caches one template set per page.
 type Renderer struct {
-	root  string
-	dev   bool
-	mu    sync.RWMutex
-	cache map[string]*template.Template
+	templates fs.FS
+	mu        sync.RWMutex
+	cache     map[string]*template.Template
 }
 
-// New creates a Renderer. When dev is true templates are re-parsed on every
-// request so changes show up without restarting the server.
-func New(root string, dev bool) *Renderer {
-	return &Renderer{
-		root:  root,
-		dev:   dev,
-		cache: make(map[string]*template.Template),
+// New creates a Renderer that reads templates from the "templates" directory
+// of webFS. Parsed template sets are cached for the lifetime of the process.
+func New(webFS fs.FS) (*Renderer, error) {
+	templates, err := fs.Sub(webFS, "templates")
+	if err != nil {
+		return nil, fmt.Errorf("templates: %w", err)
 	}
+	return &Renderer{
+		templates: templates,
+		cache:     make(map[string]*template.Template),
+	}, nil
 }
 
 func (r *Renderer) funcs() template.FuncMap {
@@ -57,47 +58,36 @@ func (r *Renderer) partials() []string {
 	}
 	out := make([]string, 0, len(names))
 	for _, name := range names {
-		out = append(out, filepath.Join(r.root, "partials", name))
+		out = append(out, "partials/"+name)
 	}
 	return out
 }
 
 func (r *Renderer) load(p pages.Page) (*template.Template, error) {
 	key := p.Layout + "|" + p.Template
-	if !r.dev {
-		r.mu.RLock()
-		t, ok := r.cache[key]
-		r.mu.RUnlock()
-		if ok {
-			return t, nil
-		}
+	r.mu.RLock()
+	t, ok := r.cache[key]
+	r.mu.RUnlock()
+	if ok {
+		return t, nil
 	}
 
-	layoutPath := filepath.Join(r.root, "layouts", p.Layout+".html")
-	pagePath := filepath.Join(r.root, "pages", p.Template)
+	layoutPath := "layouts/" + p.Layout + ".html"
+	pagePath := "pages/" + p.Template
 
 	files := make([]string, 0, len(r.partials())+2)
 	files = append(files, layoutPath)
 	files = append(files, r.partials()...)
 	files = append(files, pagePath)
 
-	for _, f := range files {
-		if _, err := os.Stat(f); err != nil {
-			return nil, fmt.Errorf("template file %s: %w", f, err)
-		}
-	}
-
-	name := filepath.Base(layoutPath)
-	t, err := template.New(name).Funcs(r.funcs()).ParseFiles(files...)
+	t, err := template.New(p.Layout+".html").Funcs(r.funcs()).ParseFS(r.templates, files...)
 	if err != nil {
 		return nil, fmt.Errorf("parse %s: %w", pagePath, err)
 	}
 
-	if !r.dev {
-		r.mu.Lock()
-		r.cache[key] = t
-		r.mu.Unlock()
-	}
+	r.mu.Lock()
+	r.cache[key] = t
+	r.mu.Unlock()
 	return t, nil
 }
 

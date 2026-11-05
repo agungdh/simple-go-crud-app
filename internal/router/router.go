@@ -1,9 +1,10 @@
 package router
 
 import (
+	"fmt"
+	"io/fs"
 	"log"
 	"net/http"
-	"path/filepath"
 
 	"github.com/go-chi/chi/v5"
 
@@ -11,16 +12,24 @@ import (
 	"simple-go-crud-app/internal/render"
 )
 
-// New builds the HTTP handler for every AdminLTE page plus the static assets.
-func New(registry []pages.Page, renderer *render.Renderer, staticDir string) http.Handler {
+// New builds the HTTP handler for every AdminLTE page plus the embedded static
+// assets found in the "static" directory of webFS.
+func New(registry []pages.Page, renderer *render.Renderer, webFS fs.FS) (http.Handler, error) {
+	staticFS, err := fs.Sub(webFS, "static")
+	if err != nil {
+		return nil, fmt.Errorf("static: %w", err)
+	}
+
 	mux := chi.NewRouter()
 
-	mount := func(prefix, dir string) {
-		mux.Handle(prefix+"/*", http.StripPrefix(prefix+"/", http.FileServer(http.Dir(filepath.Join(staticDir, dir)))))
+	for _, dir := range []string{"dist", "plugins", "bower_components"} {
+		sub, err := fs.Sub(staticFS, dir)
+		if err != nil {
+			return nil, fmt.Errorf("static %s: %w", dir, err)
+		}
+		prefix := "/" + dir
+		mux.Handle(prefix+"/*", http.StripPrefix(prefix+"/", http.FileServer(http.FS(sub))))
 	}
-	mount("/dist", "dist")
-	mount("/plugins", "plugins")
-	mount("/bower_components", "bower_components")
 
 	renderPage := func(w http.ResponseWriter, p pages.Page) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -57,5 +66,5 @@ func New(registry []pages.Page, renderer *render.Renderer, staticDir string) htt
 		})
 	}
 
-	return mux
+	return mux, nil
 }
