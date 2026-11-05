@@ -50,6 +50,47 @@ CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o adminlte-demo.exe .
 CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64 go build -o adminlte-demo-mac .
 ```
 
+## Docker & GHCR
+
+`Dockerfile` memakai multi-stage build dan image akhir
+`gcr.io/distroless/static-debian13:nonroot`.
+
+```bash
+docker build -t adminlte-demo .
+docker run --rm -p 8080:8080 adminlte-demo
+```
+
+Build x86-64-v2 secara eksplisit (default di workflow):
+
+```bash
+docker build --build-arg GOAMD64=v2 -t adminlte-demo .
+```
+
+Workflow `.github/workflows/build.yml` berjalan pada push ke `main`, tag `v*`,
+pull request, dan manual (`workflow_dispatch`). Workflow akan:
+
+1. menjalankan `go vet` dan `go test`;
+2. membuat binary `linux/amd64` dengan `GOAMD64=v2` sebagai artifact;
+3. membangun image `linux/amd64` dan push ke GHCR.
+
+Image tersedia di:
+
+```
+ghcr.io/<owner>/<repo>:latest   # push ke main
+ghcr.io/<owner>/<repo>:v1.2.3   # tag v1.2.3
+ghcr.io/<owner>/<repo>:sha-...  # setiap build
+```
+
+Pull dan jalankan:
+
+```bash
+docker pull ghcr.io/<owner>/<repo>:latest
+docker run --rm -p 8080:8080 ghcr.io/<owner>/<repo>:latest
+```
+
+Pull request hanya melakukan build (tanpa push). Package GHCR baru bersifat
+private secara default; ubah visibility lewat Settings → Packages jika perlu.
+
 ## Struktur
 
 ```
