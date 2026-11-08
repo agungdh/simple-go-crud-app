@@ -23,4 +23,4 @@ COPY --from=build /out/adminlte-demo /adminlte-demo
 EXPOSE 8080
 USER nonroot:nonroot
 ENTRYPOINT ["/adminlte-demo"]
-CMD ["-addr", ":8080"]
+CMD ["-addr", ":8080", "-db", "/tmp/app.db"]

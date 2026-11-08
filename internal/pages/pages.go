@@ -13,7 +13,20 @@ type Page struct {
 	FooterClass string
 }
 
-// Pages is the set of AdminLTE pages kept by this demo.
+// Pegawai is the dynamic CRUD page. It is not part of Pages because it needs
+// data from the database and is mounted by the pegawai handler instead.
+var Pegawai = Page{
+	Route:       "/pegawai",
+	Template:    "pegawai.html",
+	Layout:      "main",
+	Title:       "AdminLTE 2 | Data Pegawai",
+	BodyClass:   "hold-transition skin-blue sidebar-mini",
+	Active:      "pegawai",
+	Sidebar:     "default",
+	FooterClass: "main-footer",
+}
+
+// Pages is the set of static AdminLTE pages kept by this demo.
 var Pages = []Page{
 	{
 		Route:       "/starter.html",

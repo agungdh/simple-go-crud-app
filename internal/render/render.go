@@ -87,15 +87,24 @@ func (r *Renderer) load(p pages.Page) (*template.Template, error) {
 	return t, nil
 }
 
-// Render executes the page using its layout.
+// Render executes the page using its layout and the page itself as template
+// data. Use RenderData when the page needs extra values.
 func (r *Renderer) Render(w io.Writer, p pages.Page) error {
+	return r.RenderData(w, p, p)
+}
+
+// RenderData executes the page using its layout and data as the template dot.
+//
+// Layouts and partials read fields such as .Title, .Active, and .Sidebar, so
+// data is usually a struct that embeds pages.Page.
+func (r *Renderer) RenderData(w io.Writer, p pages.Page, data any) error {
 	t, err := r.load(p)
 	if err != nil {
 		return err
 	}
 
 	var buf bytes.Buffer
-	if err := t.ExecuteTemplate(&buf, p.Layout+".html", p); err != nil {
+	if err := t.ExecuteTemplate(&buf, p.Layout+".html", data); err != nil {
 		return fmt.Errorf("render %s: %w", p.Template, err)
 	}
 	_, err = w.Write(buf.Bytes())

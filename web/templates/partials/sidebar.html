@@ -10,6 +10,11 @@
             <i class="fa fa-dashboard"></i> <span>Starter</span>
           </a>
         </li>
+        <li{{if eq .Active "pegawai"}} class="active"{{end}}>
+          <a href="/pegawai">
+            <i class="fa fa-users"></i> <span>Pegawai</span>
+          </a>
+        </li>
         <li class="{{if hasPrefix .Active "examples-"}}active treeview menu-open{{else}}treeview{{end}}">
           <a href="#">
             <i class="fa fa-folder"></i> <span>Examples</span>

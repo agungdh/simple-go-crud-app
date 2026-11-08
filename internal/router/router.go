@@ -8,13 +8,17 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"simple-go-crud-app/internal/handler"
 	"simple-go-crud-app/internal/pages"
 	"simple-go-crud-app/internal/render"
 )
 
 // New builds the HTTP handler for every AdminLTE page plus the embedded static
 // assets found in the "static" directory of webFS.
-func New(registry []pages.Page, renderer *render.Renderer, webFS fs.FS) (http.Handler, error) {
+//
+// pegawai may be nil, in which case the CRUD page and API routes are not
+// mounted.
+func New(registry []pages.Page, renderer *render.Renderer, webFS fs.FS, pegawai *handler.Pegawai) (http.Handler, error) {
 	staticFS, err := fs.Sub(webFS, "static")
 	if err != nil {
 		return nil, fmt.Errorf("static: %w", err)
@@ -53,6 +57,15 @@ func New(registry []pages.Page, renderer *render.Renderer, webFS fs.FS) (http.Ha
 		mux.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			renderPage(w, starter)
 		})
+	}
+
+	if pegawai != nil {
+		mux.Get(pages.Pegawai.Route, pegawai.Page)
+		mux.Get("/api/pegawai", pegawai.List)
+		mux.Post("/api/pegawai", pegawai.Create)
+		mux.Get("/api/pegawai/{id}", pegawai.Get)
+		mux.Put("/api/pegawai/{id}", pegawai.Update)
+		mux.Delete("/api/pegawai/{id}", pegawai.Delete)
 	}
 
 	if notFound, ok := byRoute["/pages/examples/404.html"]; ok {

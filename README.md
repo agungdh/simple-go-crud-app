@@ -1,14 +1,26 @@
-# AdminLTE 2.4.18 — Go Template Demo
+# AdminLTE 2.4.18 — Go CRUD Pegawai
 
-Replika UI lengkap **AdminLTE 2.4.18** yang dirender memakai Go `html/template`
-dengan satu layout bersama. Semua aset (CSS, JS, font, gambar, plugin) disajikan
-secara lokal oleh server Go — tidak butuh koneksi ke CDN untuk aset utama.
+Aplikasi demo **AdminLTE 2.4.18** dengan Go `html/template`, lengkap dengan CRUD
+**pegawai**. Semua aset (CSS, JS, font, gambar, plugin) disajikan secara lokal
+oleh server Go — tidak butuh koneksi ke CDN untuk aset utama.
 
 Template dan aset di-embed ke dalam binary memakai `go:embed`, jadi hasil build
 berupa **satu file yang bisa langsung dibagikan** tanpa folder `web/`.
 
-Cakupan saat ini: **UI/demo statis** (3 halaman: starter, 404, dan 500). Belum
-ada database, CRUD, autentikasi, atau logika bisnis.
+## Stack
+
+| Bagian      | Teknologi                                              |
+| ----------- | ------------------------------------------------------ |
+| Bahasa      | Go 1.27                                                |
+| Router      | `github.com/go-chi/chi/v5`                             |
+| Database    | SQLite (pure Go, `modernc.org/sqlite`)                 |
+| ORM         | `github.com/uptrace/bun` + `sqlitedialect`             |
+| Migration   | `github.com/pressly/goose/v3` (embedded, auto-migrate) |
+| Template    | `html/template` + `go:embed`                           |
+| Form submit | `fetch()` dari JavaScript, API JSON                    |
+
+Migration dijalankan otomatis saat aplikasi start. File migration tetap
+kompatibel dengan goose CLI (`make migrate`).
 
 ## Menjalankan
 
@@ -21,28 +33,70 @@ Atau lewat Makefile (default menampilkan help):
 ```bash
 make              # daftar target
 make build        # bin/adminlte-demo
-make run          # go run . (bisa: make run ARGS="-addr :3000")
+make run          # go run . (bisa: make run ARGS="-addr :3000 -db app.db")
+make test         # go test ./...
+make vet          # go vet ./...
+make migrate      # opsional: goose CLI, butuh `goose` terpasang
 make build-prod   # binary statis + stripped untuk distribusi
 make clean        # hapus folder bin/
 ```
 
-Buka <http://localhost:8080>. Root `/` langsung menampilkan halaman Starter.
+Buka <http://localhost:8080>. Root `/` menampilkan halaman Starter, sedangkan
+CRUD pegawai ada di <http://localhost:8080/pegawai>.
 
 Opsi yang tersedia:
 
 ```bash
-go run . -addr :3000     # ganti port
+go run . -addr :3000          # ganti port
+go run . -db data/app.db      # ganti lokasi file SQLite
 ```
 
-Build binary mandiri:
+Database default adalah `app.db` di direktori kerja dan dibuat otomatis.
+File `*.db`, `*.db-shm`, dan `*.db-wal` sudah di-ignore oleh git.
+
+## CRUD Pegawai
+
+Halaman `/pegawai` menampilkan tabel pegawai dengan fitur tambah, edit, dan
+hapus. **Semua form disubmit lewat `fetch()` ke API JSON** (tanpa reload
+halaman), lalu tabel di-render ulang dari respons API.
+
+Field pegawai: `nip` (unik, wajib), `nama` (wajib), `jabatan`, `email`,
+`telepon`, `alamat`, serta `created_at`/`updated_at` yang diisi otomatis.
+
+### API
+
+| Method | Path                | Keterangan                       |
+| ------ | ------------------- | -------------------------------- |
+| GET    | `/api/pegawai`      | Daftar pegawai                   |
+| POST   | `/api/pegawai`      | Tambah pegawai                   |
+| GET    | `/api/pegawai/{id}` | Detail pegawai                   |
+| PUT    | `/api/pegawai/{id}` | Ubah pegawai                     |
+| DELETE | `/api/pegawai/{id}` | Hapus pegawai                    |
+
+Respons sukses memakai bentuk `{"data": ...}`; error memakai
+`{"error": "pesan"}`. Status yang dipakai: `200`, `201`, `204`, `400` (JSON/ID
+tidak valid), `404` (tidak ditemukan), `409` (NIP duplikat), `422` (validasi),
+dan `500`.
+
+Contoh:
+
+```bash
+curl -X POST http://localhost:8080/api/pegawai \
+  -H 'Content-Type: application/json' \
+  -d '{"nip":"198001012005011001","nama":"Budi Santoso","jabatan":"Staf"}'
+
+curl http://localhost:8080/api/pegawai
+```
+
+## Build binary mandiri
 
 ```bash
 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o adminlte-demo .
 ./adminlte-demo -addr :8080
 ```
 
-Binary sudah berisi seluruh template dan aset; tidak perlu menyalin folder
-`web/` ke mesin tujuan. Build untuk platform lain:
+Binary sudah berisi seluruh template, aset, dan migration; tidak perlu menyalin
+folder `web/` ke mesin tujuan. Build untuk platform lain:
 
 ```bash
 CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build -o adminlte-demo-linux .
@@ -53,7 +107,9 @@ CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64 go build -o adminlte-demo-mac .
 ## Docker & GHCR
 
 `Dockerfile` memakai multi-stage build dan image akhir
-`gcr.io/distroless/static-debian13:nonroot`.
+`gcr.io/distroless/static-debian13:nonroot`. Karena image berjalan sebagai
+non-root, container memakai database di `/tmp/app.db` (ephemeral). Untuk data
+persisten, mount volume dan arahkan flag `-db` ke path yang bisa ditulis.
 
 ```bash
 docker build -t adminlte-demo .
@@ -94,22 +150,26 @@ private secara default; ubah visibility lewat Settings → Packages jika perlu.
 ## Struktur
 
 ```
-main.go                     entrypoint + flag
-internal/pages/pages.go     registry 3 halaman (route, layout, title, sidebar, dll.)
-internal/render/render.go   loader/cache template dari embed.FS + template funcs
-internal/router/router.go   routing chi, mount aset embedded, handler 404
-web/assets.go               //go:embed templates + static
-web/templates/layouts/      main.html
-web/templates/partials/     header, sidebar, control-sidebar, footer
-web/templates/pages/        starter.html + examples/{404,500}.html
-web/static/                 dist/ dan bower_components/ (aset AdminLTE yang dipakai)
+main.go                              entrypoint, flag, wiring DB + router
+internal/pages/pages.go              registry halaman statis + definisi halaman pegawai
+internal/render/render.go            loader/cache template dari embed.FS + template funcs
+internal/router/router.go            routing chi, aset embedded, halaman + API pegawai, 404
+internal/handler/pegawai.go          handler halaman + JSON API CRUD pegawai
+internal/repository/pegawai.go       akses data Bun (list, get, create, update, delete)
+internal/model/pegawai.go            entity pegawai (tag Bun + JSON)
+internal/database/database.go        koneksi SQLite + runner goose (embed)
+internal/database/migrations/        file migration goose (*.sql)
+web/assets.go                        //go:embed templates + static
+web/templates/layouts/               main.html
+web/templates/partials/              header, sidebar, footer
+web/templates/pages/                 starter, pegawai, examples/{404,500}
+web/static/                          dist/ dan bower_components/ (aset AdminLTE)
 ```
-
-Semua halaman memakai layout `main` (sidebar + header + control sidebar).
 
 ## Daftar Halaman
 
 - `/starter.html` (root `/` juga menampilkan halaman ini)
+- `/pegawai` — CRUD pegawai
 - `/pages/examples/404.html`
 - `/pages/examples/500.html`
 
@@ -119,9 +179,10 @@ Route yang tidak dikenal mengembalikan **HTTP 404** dengan halaman 404 AdminLTE.
 
 - URL aset dan link dinormalisasi ke path absolut (`/dist/...`,
   `/bower_components/...`) sehingga bisa diakses dari route mana pun.
-- Template di-parse sekali lalu di-cache; perubahan template/aset memerlukan
-  build ulang karena sudah di-embed.
+- Template di-parse sekali lalu di-cache; perubahan template/aset/migration
+  memerlukan build ulang karena sudah di-embed.
 - `html/template` menghapus komentar HTML/JS saat render. Ini tidak mengubah
   tampilan maupun perilaku halaman.
-- Aset di `web/static/` dibatasi ke file yang benar-benar dirujuk oleh tiga
-  halaman tersebut agar binary hasil build tetap kecil.
+- Koneksi SQLite dibatasi satu koneksi (`SetMaxOpenConns(1)`) untuk menghindari
+  error `database is locked` saat ada banyak penulisan bersamaan.
+- Lihat `AGENTS.md` untuk panduan kontribusi dan konvensi kode.

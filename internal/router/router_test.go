@@ -1,14 +1,21 @@
 package router_test
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
 
+	"simple-go-crud-app/internal/database"
+	"simple-go-crud-app/internal/handler"
 	"simple-go-crud-app/internal/pages"
 	"simple-go-crud-app/internal/render"
+	"simple-go-crud-app/internal/repository"
 	"simple-go-crud-app/internal/router"
 	"simple-go-crud-app/web"
 )
@@ -21,7 +28,20 @@ func newHandler(t *testing.T) http.Handler {
 		t.Fatalf("render.New: %v", err)
 	}
 
-	handler, err := router.New(pages.Pages, renderer, web.FS)
+	db, err := database.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatalf("database.Open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	ctx := context.Background()
+	if err := database.Migrate(ctx, db); err != nil {
+		t.Fatalf("database.Migrate: %v", err)
+	}
+
+	pegawai := handler.NewPegawai(repository.NewPegawai(db), renderer, pages.Pegawai)
+
+	handler, err := router.New(pages.Pages, renderer, web.FS, pegawai)
 	if err != nil {
 		t.Fatalf("router.New: %v", err)
 	}
@@ -31,6 +51,20 @@ func newHandler(t *testing.T) http.Handler {
 func get(handler http.Handler, path string) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+	return rec
+}
+
+func send(handler http.Handler, method, path string, body any) *httptest.ResponseRecorder {
+	var buf bytes.Buffer
+	if body != nil {
+		if err := json.NewEncoder(&buf).Encode(body); err != nil {
+			panic(err)
+		}
+	}
+	req := httptest.NewRequest(method, path, &buf)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
 	return rec
 }
 
@@ -111,5 +145,152 @@ func TestEmbeddedAssetsAreServed(t *testing.T) {
 		if rec := get(handler, path); rec.Code != http.StatusOK {
 			t.Errorf("%s: status = %d, want 200", path, rec.Code)
 		}
+	}
+}
+
+type pegawaiResponse struct {
+	Data struct {
+		ID      int64  `json:"id"`
+		NIP     string `json:"nip"`
+		Nama    string `json:"nama"`
+		Jabatan string `json:"jabatan"`
+		Email   string `json:"email"`
+		Telepon string `json:"telepon"`
+		Alamat  string `json:"alamat"`
+	} `json:"data"`
+}
+
+type pegawaiListResponse struct {
+	Data []struct {
+		ID   int64  `json:"id"`
+		NIP  string `json:"nip"`
+		Nama string `json:"nama"`
+	} `json:"data"`
+}
+
+func TestPegawaiPageRenders(t *testing.T) {
+	handler := newHandler(t)
+
+	rec := get(handler, pages.Pegawai.Route)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	body := rec.Body.String()
+	for _, want := range []string{"Data Pegawai", "Tambah Pegawai", "/pegawai"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("body does not contain %q", want)
+		}
+	}
+}
+
+func TestPegawaiCRUDFlow(t *testing.T) {
+	handler := newHandler(t)
+
+	create := send(handler, http.MethodPost, "/api/pegawai", map[string]string{
+		"nip":     "198001012005011001",
+		"nama":    "Budi Santoso",
+		"jabatan": "Staf",
+		"email":   "budi@example.com",
+		"telepon": "08123456789",
+		"alamat":  "Jakarta",
+	})
+	if create.Code != http.StatusCreated {
+		t.Fatalf("create status = %d, body = %s", create.Code, create.Body.String())
+	}
+
+	var created pegawaiResponse
+	if err := json.Unmarshal(create.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode create: %v", err)
+	}
+	if created.Data.ID == 0 || created.Data.Nama != "Budi Santoso" {
+		t.Fatalf("unexpected created row: %+v", created.Data)
+	}
+
+	// The same NIP must be rejected.
+	duplicate := send(handler, http.MethodPost, "/api/pegawai", map[string]string{
+		"nip":  "198001012005011001",
+		"nama": "Pegawai Lain",
+	})
+	if duplicate.Code != http.StatusConflict {
+		t.Fatalf("duplicate status = %d, want 409", duplicate.Code)
+	}
+
+	list := get(handler, "/api/pegawai")
+	if list.Code != http.StatusOK {
+		t.Fatalf("list status = %d", list.Code)
+	}
+	var listed pegawaiListResponse
+	if err := json.Unmarshal(list.Body.Bytes(), &listed); err != nil {
+		t.Fatalf("decode list: %v", err)
+	}
+	if len(listed.Data) != 1 || listed.Data[0].NIP != "198001012005011001" {
+		t.Fatalf("unexpected list: %+v", listed.Data)
+	}
+
+	update := send(handler, http.MethodPut, "/api/pegawai/1", map[string]string{
+		"nip":     "198001012005011001",
+		"nama":    "Budi Santoso, S.Kom",
+		"jabatan": "Kepala Seksi",
+		"email":   "budi@example.com",
+		"telepon": "08123456789",
+		"alamat":  "Bandung",
+	})
+	if update.Code != http.StatusOK {
+		t.Fatalf("update status = %d, body = %s", update.Code, update.Body.String())
+	}
+
+	single := get(handler, "/api/pegawai/1")
+	if single.Code != http.StatusOK {
+		t.Fatalf("get status = %d", single.Code)
+	}
+	var fetched pegawaiResponse
+	if err := json.Unmarshal(single.Body.Bytes(), &fetched); err != nil {
+		t.Fatalf("decode get: %v", err)
+	}
+	if fetched.Data.Nama != "Budi Santoso, S.Kom" || fetched.Data.Jabatan != "Kepala Seksi" {
+		t.Fatalf("update not persisted: %+v", fetched.Data)
+	}
+
+	if rec := send(handler, http.MethodDelete, "/api/pegawai/1", nil); rec.Code != http.StatusNoContent {
+		t.Fatalf("delete status = %d, want 204", rec.Code)
+	}
+	if rec := get(handler, "/api/pegawai/1"); rec.Code != http.StatusNotFound {
+		t.Fatalf("get after delete status = %d, want 404", rec.Code)
+	}
+}
+
+func TestPegawaiValidation(t *testing.T) {
+	handler := newHandler(t)
+
+	cases := []struct {
+		name string
+		body map[string]string
+		want int
+	}{
+		{"missing nip", map[string]string{"nama": "Tanpa NIP"}, http.StatusUnprocessableEntity},
+		{"missing nama", map[string]string{"nip": "123"}, http.StatusUnprocessableEntity},
+		{"invalid email", map[string]string{"nip": "123", "nama": "Budi", "email": "bukan-email"}, http.StatusUnprocessableEntity},
+		{"invalid json", nil, http.StatusBadRequest},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var rec *httptest.ResponseRecorder
+			if tc.body == nil {
+				req := httptest.NewRequest(http.MethodPost, "/api/pegawai", strings.NewReader("{not json"))
+				rec = httptest.NewRecorder()
+				handler.ServeHTTP(rec, req)
+			} else {
+				rec = send(handler, http.MethodPost, "/api/pegawai", tc.body)
+			}
+			if rec.Code != tc.want {
+				t.Fatalf("status = %d, want %d, body = %s", rec.Code, tc.want, rec.Body.String())
+			}
+		})
+	}
+
+	if rec := get(handler, "/api/pegawai/abc"); rec.Code != http.StatusBadRequest {
+		t.Fatalf("invalid id status = %d, want 400", rec.Code)
 	}
 }

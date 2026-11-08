@@ -1,2 +1,7 @@
 /simple-go-crud-app
 /bin/
+
+# SQLite runtime files
+*.db
+*.db-shm
+*.db-wal

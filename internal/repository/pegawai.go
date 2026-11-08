@@ -1,0 +1,135 @@
+// Package repository provides data access helpers backed by Bun.
+package repository
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/uptrace/bun"
+
+	"simple-go-crud-app/internal/model"
+)
+
+var (
+	// ErrNotFound is returned when a pegawai row does not exist.
+	ErrNotFound = errors.New("pegawai tidak ditemukan")
+	// ErrDuplicateNIP is returned when the NIP is already used by another row.
+	ErrDuplicateNIP = errors.New("NIP sudah terdaftar")
+)
+
+// PegawaiRepository persists pegawai rows in SQLite.
+type PegawaiRepository struct {
+	db *bun.DB
+}
+
+// NewPegawai returns a repository that uses db.
+func NewPegawai(db *bun.DB) *PegawaiRepository {
+	return &PegawaiRepository{db: db}
+}
+
+// List returns every pegawai ordered by ID.
+func (r *PegawaiRepository) List(ctx context.Context) ([]model.Pegawai, error) {
+	items := make([]model.Pegawai, 0)
+	if err := r.db.NewSelect().Model(&items).OrderExpr("p.id ASC").Scan(ctx); err != nil {
+		return nil, fmt.Errorf("list pegawai: %w", err)
+	}
+	return items, nil
+}
+
+// Get returns a single pegawai by ID.
+func (r *PegawaiRepository) Get(ctx context.Context, id int64) (*model.Pegawai, error) {
+	p := new(model.Pegawai)
+	err := r.db.NewSelect().Model(p).Where("p.id = ?", id).Scan(ctx)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get pegawai: %w", err)
+	}
+	return p, nil
+}
+
+// Create inserts a new pegawai and fills in its generated ID and timestamps.
+func (r *PegawaiRepository) Create(ctx context.Context, p *model.Pegawai) error {
+	now := time.Now().UTC()
+	p.CreatedAt = now
+	p.UpdatedAt = now
+
+	_, err := r.db.NewInsert().Model(p).Returning("id").Exec(ctx)
+	if err != nil {
+		return mapWriteError(err, "create pegawai")
+	}
+	return nil
+}
+
+// Update replaces the mutable fields of an existing pegawai.
+func (r *PegawaiRepository) Update(ctx context.Context, p *model.Pegawai) error {
+	p.UpdatedAt = time.Now().UTC()
+
+	res, err := r.db.NewUpdate().
+		Model(p).
+		Column("nip", "nama", "jabatan", "email", "telepon", "alamat", "updated_at").
+		Where("p.id = ?", p.ID).
+		Exec(ctx)
+	if err != nil {
+		return mapWriteError(err, "update pegawai")
+	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("update pegawai rows: %w", err)
+	}
+	if affected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// Delete removes a pegawai by ID.
+func (r *PegawaiRepository) Delete(ctx context.Context, id int64) error {
+	res, err := r.db.NewDelete().Model((*model.Pegawai)(nil)).Where("p.id = ?", id).Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("delete pegawai: %w", err)
+	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("delete pegawai rows: %w", err)
+	}
+	if affected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// NIPExists reports whether nip is already stored, optionally ignoring the row
+// with the given ID (useful while updating).
+func (r *PegawaiRepository) NIPExists(ctx context.Context, nip string, excludeID int64) (bool, error) {
+	q := r.db.NewSelect().Model((*model.Pegawai)(nil)).Where("p.nip = ?", nip)
+	if excludeID != 0 {
+		q = q.Where("p.id <> ?", excludeID)
+	}
+	exists, err := q.Exists(ctx)
+	if err != nil {
+		return false, fmt.Errorf("check nip: %w", err)
+	}
+	return exists, nil
+}
+
+func mapWriteError(err error, op string) error {
+	if isUniqueViolation(err) {
+		return ErrDuplicateNIP
+	}
+	return fmt.Errorf("%s: %w", op, err)
+}
+
+func isUniqueViolation(err error) bool {
+	// modernc.org/sqlite reports constraint failures as text; checking the
+	// message keeps the repository independent from driver-specific types.
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "unique constraint") || strings.Contains(msg, "constraint failed: unique")
+}
