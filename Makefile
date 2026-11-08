@@ -38,5 +38,6 @@ migrate: ## Terapkan migration via goose CLI (opsional; app juga auto-migrate)
 migrate-status: ## Lihat status migration via goose CLI
 	$(GOOSE) -dir internal/database/migrations sqlite3 "$(DB)" status
 
-clean: ## Hapus hasil build
+clean: ## Hapus hasil build dan database runtime
 	rm -rf $(BIN_DIR)
+	rm -f "$(DB)" "$(DB)-shm" "$(DB)-wal"
