@@ -42,8 +42,9 @@ func newHandler(t *testing.T) http.Handler {
 	}
 
 	pegawai := handler.NewPegawai(repository.NewPegawai(db), renderer, pages.Pegawai)
+	bidang := handler.NewBidang(repository.NewBidang(db), renderer, pages.Bidang)
 
-	handler, err := router.New(pages.Pages, renderer, web.FS, pegawai)
+	handler, err := router.New(pages.Pages, renderer, web.FS, pegawai, bidang)
 	if err != nil {
 		t.Fatalf("router.New: %v", err)
 	}
@@ -68,6 +69,32 @@ func send(handler http.Handler, method, path string, body any) *httptest.Respons
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	return rec
+}
+
+type bidangResponse struct {
+	Data struct {
+		ID   int64  `json:"id"`
+		Kode string `json:"kode"`
+		Nama string `json:"nama"`
+	} `json:"data"`
+}
+
+func seedBidang(t *testing.T, handler http.Handler) int64 {
+	t.Helper()
+
+	rec := send(handler, http.MethodPost, "/api/bidang", map[string]string{
+		"kode": "BID-01",
+		"nama": "Umum",
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("seed bidang status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	var created bidangResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode seed bidang: %v", err)
+	}
+	return created.Data.ID
 }
 
 func TestAllPagesRender(t *testing.T) {
@@ -126,6 +153,8 @@ func TestEmbeddedAssetsAreServed(t *testing.T) {
 		"/plugins/datatables/jquery.dataTables.min.js",
 		"/plugins/datatables/dataTables.bootstrap.min.js",
 		"/plugins/datatables/dataTables.bootstrap.min.css",
+		"/plugins/select2/select2.min.js",
+		"/plugins/select2/select2.min.css",
 	}
 	for _, asset := range required {
 		if rec := get(handler, asset); rec.Code != http.StatusOK {
@@ -155,13 +184,15 @@ func TestEmbeddedAssetsAreServed(t *testing.T) {
 
 type pegawaiResponse struct {
 	Data struct {
-		ID      int64  `json:"id"`
-		NIP     string `json:"nip"`
-		Nama    string `json:"nama"`
-		Jabatan string `json:"jabatan"`
-		Email   string `json:"email"`
-		Telepon string `json:"telepon"`
-		Alamat  string `json:"alamat"`
+		ID         int64  `json:"id"`
+		NIP        string `json:"nip"`
+		Nama       string `json:"nama"`
+		Jabatan    string `json:"jabatan"`
+		BidangID   int64  `json:"bidang_id"`
+		BidangNama string `json:"bidang_nama"`
+		Email      string `json:"email"`
+		Telepon    string `json:"telepon"`
+		Alamat     string `json:"alamat"`
 	} `json:"data"`
 }
 
@@ -191,21 +222,23 @@ func TestPegawaiPageRenders(t *testing.T) {
 
 func TestPegawaiFormPages(t *testing.T) {
 	handler := newHandler(t)
+	bidangID := seedBidang(t, handler)
 
 	create := get(handler, pages.PegawaiCreate.Route)
 	if create.Code != http.StatusOK {
 		t.Fatalf("create form status = %d, want 200", create.Code)
 	}
 	createBody := create.Body.String()
-	for _, want := range []string{`id="form-pegawai"`, `data-action="/api/pegawai"`, `data-method="POST"`} {
+	for _, want := range []string{`id="form-pegawai"`, `data-action="/api/pegawai"`, `data-method="POST"`, `name="bidang_id"`, "/plugins/select2/select2.min.js", "/api/bidang/search"} {
 		if !strings.Contains(createBody, want) {
 			t.Errorf("create form does not contain %q", want)
 		}
 	}
 
-	created := send(handler, http.MethodPost, "/api/pegawai", map[string]string{
-		"nip":  "198001012005011001",
-		"nama": "Budi Santoso",
+	created := send(handler, http.MethodPost, "/api/pegawai", map[string]any{
+		"nip":       "198001012005011001",
+		"nama":      "Budi Santoso",
+		"bidang_id": bidangID,
 	})
 	if created.Code != http.StatusCreated {
 		t.Fatalf("create status = %d, body = %s", created.Code, created.Body.String())
@@ -229,14 +262,16 @@ func TestPegawaiFormPages(t *testing.T) {
 
 func TestPegawaiCRUDFlow(t *testing.T) {
 	handler := newHandler(t)
+	bidangID := seedBidang(t, handler)
 
-	create := send(handler, http.MethodPost, "/api/pegawai", map[string]string{
-		"nip":     "198001012005011001",
-		"nama":    "Budi Santoso",
-		"jabatan": "Staf",
-		"email":   "budi@example.com",
-		"telepon": "08123456789",
-		"alamat":  "Jakarta",
+	create := send(handler, http.MethodPost, "/api/pegawai", map[string]any{
+		"nip":       "198001012005011001",
+		"nama":      "Budi Santoso",
+		"jabatan":   "Staf",
+		"bidang_id": bidangID,
+		"email":     "budi@example.com",
+		"telepon":   "08123456789",
+		"alamat":    "Jakarta",
 	})
 	if create.Code != http.StatusCreated {
 		t.Fatalf("create status = %d, body = %s", create.Code, create.Body.String())
@@ -251,9 +286,10 @@ func TestPegawaiCRUDFlow(t *testing.T) {
 	}
 
 	// The same NIP must be rejected.
-	duplicate := send(handler, http.MethodPost, "/api/pegawai", map[string]string{
-		"nip":  "198001012005011001",
-		"nama": "Pegawai Lain",
+	duplicate := send(handler, http.MethodPost, "/api/pegawai", map[string]any{
+		"nip":       "198001012005011001",
+		"nama":      "Pegawai Lain",
+		"bidang_id": bidangID,
 	})
 	if duplicate.Code != http.StatusConflict {
 		t.Fatalf("duplicate status = %d, want 409", duplicate.Code)
@@ -271,13 +307,14 @@ func TestPegawaiCRUDFlow(t *testing.T) {
 		t.Fatalf("unexpected list: %+v", listed.Data)
 	}
 
-	update := send(handler, http.MethodPut, "/api/pegawai/1", map[string]string{
-		"nip":     "198001012005011001",
-		"nama":    "Budi Santoso, S.Kom",
-		"jabatan": "Kepala Seksi",
-		"email":   "budi@example.com",
-		"telepon": "08123456789",
-		"alamat":  "Bandung",
+	update := send(handler, http.MethodPut, "/api/pegawai/1", map[string]any{
+		"nip":       "198001012005011001",
+		"nama":      "Budi Santoso, S.Kom",
+		"jabatan":   "Kepala Seksi",
+		"bidang_id": bidangID,
+		"email":     "budi@example.com",
+		"telepon":   "08123456789",
+		"alamat":    "Bandung",
 	})
 	if update.Code != http.StatusOK {
 		t.Fatalf("update status = %d, body = %s", update.Code, update.Body.String())
@@ -294,6 +331,9 @@ func TestPegawaiCRUDFlow(t *testing.T) {
 	if fetched.Data.Nama != "Budi Santoso, S.Kom" || fetched.Data.Jabatan != "Kepala Seksi" {
 		t.Fatalf("update not persisted: %+v", fetched.Data)
 	}
+	if fetched.Data.BidangID != bidangID || fetched.Data.BidangNama != "Umum" {
+		t.Fatalf("bidang not persisted: %+v", fetched.Data)
+	}
 
 	if rec := send(handler, http.MethodDelete, "/api/pegawai/1", nil); rec.Code != http.StatusNoContent {
 		t.Fatalf("delete status = %d, want 204", rec.Code)
@@ -305,15 +345,17 @@ func TestPegawaiCRUDFlow(t *testing.T) {
 
 func TestPegawaiValidation(t *testing.T) {
 	handler := newHandler(t)
+	bidangID := seedBidang(t, handler)
 
 	cases := []struct {
 		name string
-		body map[string]string
+		body map[string]any
 		want int
 	}{
-		{"missing nip", map[string]string{"nama": "Tanpa NIP"}, http.StatusUnprocessableEntity},
-		{"missing nama", map[string]string{"nip": "123"}, http.StatusUnprocessableEntity},
-		{"invalid email", map[string]string{"nip": "123", "nama": "Budi", "email": "bukan-email"}, http.StatusUnprocessableEntity},
+		{"missing nip", map[string]any{"nama": "Tanpa NIP", "bidang_id": bidangID}, http.StatusUnprocessableEntity},
+		{"missing nama", map[string]any{"nip": "123", "bidang_id": bidangID}, http.StatusUnprocessableEntity},
+		{"missing bidang", map[string]any{"nip": "123", "nama": "Budi"}, http.StatusUnprocessableEntity},
+		{"invalid email", map[string]any{"nip": "123", "nama": "Budi", "bidang_id": bidangID, "email": "bukan-email"}, http.StatusUnprocessableEntity},
 		{"invalid json", nil, http.StatusBadRequest},
 	}
 
@@ -351,11 +393,13 @@ type datatableResponse struct {
 
 func TestPegawaiDatatable(t *testing.T) {
 	handler := newHandler(t)
+	bidangID := seedBidang(t, handler)
 
 	for i := 1; i <= 12; i++ {
-		rec := send(handler, http.MethodPost, "/api/pegawai", map[string]string{
-			"nip":  fmt.Sprintf("nip-%02d", i),
-			"nama": fmt.Sprintf("Pegawai %02d", i),
+		rec := send(handler, http.MethodPost, "/api/pegawai", map[string]any{
+			"nip":       fmt.Sprintf("nip-%02d", i),
+			"nama":      fmt.Sprintf("Pegawai %02d", i),
+			"bidang_id": bidangID,
 		})
 		if rec.Code != http.StatusCreated {
 			t.Fatalf("seed %d: status = %d, body = %s", i, rec.Code, rec.Body.String())
@@ -437,5 +481,312 @@ func TestPegawaiDatatable(t *testing.T) {
 	})
 	if len(fallback.Data) != 5 || fallback.Data[0].ID != 1 {
 		t.Fatalf("unexpected fallback order: %+v", fallback.Data)
+	}
+}
+
+type bidangListResponse struct {
+	Data []struct {
+		ID   int64  `json:"id"`
+		Kode string `json:"kode"`
+		Nama string `json:"nama"`
+	} `json:"data"`
+}
+
+type bidangDatatableResponse struct {
+	Draw            int   `json:"draw"`
+	RecordsTotal    int64 `json:"recordsTotal"`
+	RecordsFiltered int64 `json:"recordsFiltered"`
+	Data            []struct {
+		ID   int64  `json:"id"`
+		Kode string `json:"kode"`
+		Nama string `json:"nama"`
+	} `json:"data"`
+}
+
+func TestBidangPageRenders(t *testing.T) {
+	handler := newHandler(t)
+
+	rec := get(handler, pages.Bidang.Route)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	body := rec.Body.String()
+	for _, want := range []string{"Data Bidang", "Tambah Bidang", "/bidang/create", `id="tabel-bidang"`, "serverSide: true", "/api/bidang/datatable"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("body does not contain %q", want)
+		}
+	}
+}
+
+func TestBidangFormPages(t *testing.T) {
+	handler := newHandler(t)
+
+	create := get(handler, pages.BidangCreate.Route)
+	if create.Code != http.StatusOK {
+		t.Fatalf("create form status = %d, want 200", create.Code)
+	}
+	createBody := create.Body.String()
+	for _, want := range []string{`id="form-bidang"`, `data-action="/api/bidang"`, `data-method="POST"`, `name="kode"`, `name="nama"`} {
+		if !strings.Contains(createBody, want) {
+			t.Errorf("create form does not contain %q", want)
+		}
+	}
+
+	created := send(handler, http.MethodPost, "/api/bidang", map[string]string{
+		"kode": "BID-01",
+		"nama": "Umum",
+	})
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create status = %d, body = %s", created.Code, created.Body.String())
+	}
+
+	edit := get(handler, "/bidang/1/edit")
+	if edit.Code != http.StatusOK {
+		t.Fatalf("edit form status = %d, want 200", edit.Code)
+	}
+	editBody := edit.Body.String()
+	for _, want := range []string{`data-action="/api/bidang/1"`, `data-method="PUT"`, `value="BID-01"`} {
+		if !strings.Contains(editBody, want) {
+			t.Errorf("edit form does not contain %q", want)
+		}
+	}
+
+	if rec := get(handler, "/bidang/999/edit"); rec.Code != http.StatusNotFound {
+		t.Fatalf("missing edit form status = %d, want 404", rec.Code)
+	}
+}
+
+func TestBidangCRUDFlow(t *testing.T) {
+	handler := newHandler(t)
+
+	create := send(handler, http.MethodPost, "/api/bidang", map[string]string{
+		"kode": "BID-01",
+		"nama": "Umum",
+	})
+	if create.Code != http.StatusCreated {
+		t.Fatalf("create status = %d, body = %s", create.Code, create.Body.String())
+	}
+
+	var created bidangResponse
+	if err := json.Unmarshal(create.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode create: %v", err)
+	}
+	if created.Data.ID == 0 || created.Data.Kode != "BID-01" {
+		t.Fatalf("unexpected created row: %+v", created.Data)
+	}
+
+	duplicate := send(handler, http.MethodPost, "/api/bidang", map[string]string{
+		"kode": "BID-01",
+		"nama": "Bidang Lain",
+	})
+	if duplicate.Code != http.StatusConflict {
+		t.Fatalf("duplicate status = %d, want 409", duplicate.Code)
+	}
+
+	list := get(handler, "/api/bidang")
+	if list.Code != http.StatusOK {
+		t.Fatalf("list status = %d", list.Code)
+	}
+	var listed bidangListResponse
+	if err := json.Unmarshal(list.Body.Bytes(), &listed); err != nil {
+		t.Fatalf("decode list: %v", err)
+	}
+	if len(listed.Data) != 1 || listed.Data[0].Kode != "BID-01" {
+		t.Fatalf("unexpected list: %+v", listed.Data)
+	}
+
+	update := send(handler, http.MethodPut, "/api/bidang/1", map[string]string{
+		"kode": "BID-01",
+		"nama": "Umum dan Kepegawaian",
+	})
+	if update.Code != http.StatusOK {
+		t.Fatalf("update status = %d, body = %s", update.Code, update.Body.String())
+	}
+
+	single := get(handler, "/api/bidang/1")
+	if single.Code != http.StatusOK {
+		t.Fatalf("get status = %d", single.Code)
+	}
+	var fetched bidangResponse
+	if err := json.Unmarshal(single.Body.Bytes(), &fetched); err != nil {
+		t.Fatalf("decode get: %v", err)
+	}
+	if fetched.Data.Nama != "Umum dan Kepegawaian" {
+		t.Fatalf("update not persisted: %+v", fetched.Data)
+	}
+
+	if rec := send(handler, http.MethodDelete, "/api/bidang/1", nil); rec.Code != http.StatusNoContent {
+		t.Fatalf("delete status = %d, want 204", rec.Code)
+	}
+	if rec := get(handler, "/api/bidang/1"); rec.Code != http.StatusNotFound {
+		t.Fatalf("get after delete status = %d, want 404", rec.Code)
+	}
+}
+
+func TestBidangValidation(t *testing.T) {
+	handler := newHandler(t)
+
+	cases := []struct {
+		name string
+		body map[string]string
+		want int
+	}{
+		{"missing kode", map[string]string{"nama": "Umum"}, http.StatusUnprocessableEntity},
+		{"missing nama", map[string]string{"kode": "BID-01"}, http.StatusUnprocessableEntity},
+		{"invalid json", nil, http.StatusBadRequest},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var rec *httptest.ResponseRecorder
+			if tc.body == nil {
+				req := httptest.NewRequest(http.MethodPost, "/api/bidang", strings.NewReader("{not json"))
+				rec = httptest.NewRecorder()
+				handler.ServeHTTP(rec, req)
+			} else {
+				rec = send(handler, http.MethodPost, "/api/bidang", tc.body)
+			}
+			if rec.Code != tc.want {
+				t.Fatalf("status = %d, want %d, body = %s", rec.Code, tc.want, rec.Body.String())
+			}
+		})
+	}
+
+	if rec := get(handler, "/api/bidang/abc"); rec.Code != http.StatusBadRequest {
+		t.Fatalf("invalid id status = %d, want 400", rec.Code)
+	}
+}
+
+func TestBidangDatatable(t *testing.T) {
+	handler := newHandler(t)
+
+	for i := 1; i <= 12; i++ {
+		rec := send(handler, http.MethodPost, "/api/bidang", map[string]string{
+			"kode": fmt.Sprintf("BID-%02d", i),
+			"nama": fmt.Sprintf("Bidang %02d", i),
+		})
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("seed %d: status = %d, body = %s", i, rec.Code, rec.Body.String())
+		}
+	}
+
+	request := func(params url.Values) bidangDatatableResponse {
+		t.Helper()
+		rec := get(handler, "/api/bidang/datatable?"+params.Encode())
+		if rec.Code != http.StatusOK {
+			t.Fatalf("datatable status = %d, body = %s", rec.Code, rec.Body.String())
+		}
+		var out bidangDatatableResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+			t.Fatalf("decode datatable: %v", err)
+		}
+		return out
+	}
+
+	first := request(url.Values{
+		"draw":             {"1"},
+		"start":            {"0"},
+		"length":           {"5"},
+		"order[0][column]": {"0"},
+		"order[0][dir]":    {"asc"},
+	})
+	if first.Draw != 1 || first.RecordsTotal != 12 || first.RecordsFiltered != 12 {
+		t.Fatalf("unexpected counters: %+v", first)
+	}
+	if len(first.Data) != 5 || first.Data[0].Kode != "BID-01" {
+		t.Fatalf("unexpected first page: %+v", first.Data)
+	}
+
+	desc := request(url.Values{
+		"start":            {"0"},
+		"length":           {"5"},
+		"order[0][column]": {"2"},
+		"order[0][dir]":    {"desc"},
+	})
+	if len(desc.Data) == 0 || desc.Data[0].Nama != "Bidang 12" {
+		t.Fatalf("unexpected desc order: %+v", desc.Data)
+	}
+
+	search := request(url.Values{
+		"start":         {"0"},
+		"length":        {"5"},
+		"search[value]": {"Bidang 0"},
+	})
+	if search.RecordsTotal != 12 || search.RecordsFiltered != 9 || len(search.Data) != 5 {
+		t.Fatalf("unexpected search result: %+v", search)
+	}
+
+	fallback := request(url.Values{
+		"start":            {"0"},
+		"length":           {"5"},
+		"order[0][column]": {"99"},
+		"order[0][dir]":    {"drop table"},
+	})
+	if len(fallback.Data) != 5 || fallback.Data[0].ID != 1 {
+		t.Fatalf("unexpected fallback order: %+v", fallback.Data)
+	}
+}
+
+func TestBidangSearch(t *testing.T) {
+	handler := newHandler(t)
+
+	created := send(handler, http.MethodPost, "/api/bidang", map[string]string{
+		"kode": "BID-01",
+		"nama": "Kepegawaian",
+	})
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create status = %d, body = %s", created.Code, created.Body.String())
+	}
+
+	search := func(q string) bidangListResponse {
+		t.Helper()
+		rec := get(handler, "/api/bidang/search?q="+url.QueryEscape(q))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("search status = %d, body = %s", rec.Code, rec.Body.String())
+		}
+		var out bidangListResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+			t.Fatalf("decode search: %v", err)
+		}
+		return out
+	}
+
+	if got := search("kepeg"); len(got.Data) != 1 || got.Data[0].Kode != "BID-01" {
+		t.Fatalf("unexpected name search: %+v", got.Data)
+	}
+	if got := search("bid-01"); len(got.Data) != 1 {
+		t.Fatalf("unexpected kode search: %+v", got.Data)
+	}
+	if got := search("tidak-ada"); len(got.Data) != 0 {
+		t.Fatalf("expected empty result, got %+v", got.Data)
+	}
+	if got := search(""); len(got.Data) != 0 {
+		t.Fatalf("expected empty keyword to return nothing, got %+v", got.Data)
+	}
+}
+
+func TestBidangDeleteInUse(t *testing.T) {
+	handler := newHandler(t)
+	bidangID := seedBidang(t, handler)
+
+	created := send(handler, http.MethodPost, "/api/pegawai", map[string]any{
+		"nip":       "198001012005011001",
+		"nama":      "Budi Santoso",
+		"bidang_id": bidangID,
+	})
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create pegawai status = %d, body = %s", created.Code, created.Body.String())
+	}
+
+	if rec := send(handler, http.MethodDelete, fmt.Sprintf("/api/bidang/%d", bidangID), nil); rec.Code != http.StatusConflict {
+		t.Fatalf("delete in-use status = %d, want 409, body = %s", rec.Code, rec.Body.String())
+	}
+
+	if rec := send(handler, http.MethodDelete, "/api/pegawai/1", nil); rec.Code != http.StatusNoContent {
+		t.Fatalf("delete pegawai status = %d, want 204", rec.Code)
+	}
+	if rec := send(handler, http.MethodDelete, fmt.Sprintf("/api/bidang/%d", bidangID), nil); rec.Code != http.StatusNoContent {
+		t.Fatalf("delete bidang status = %d, want 204", rec.Code)
 	}
 }

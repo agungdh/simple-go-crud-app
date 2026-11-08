@@ -16,9 +16,9 @@ import (
 // New builds the HTTP handler for every AdminLTE page plus the embedded static
 // assets found in the "static" directory of webFS.
 //
-// pegawai may be nil, in which case the CRUD page and API routes are not
-// mounted.
-func New(registry []pages.Page, renderer *render.Renderer, webFS fs.FS, pegawai *handler.Pegawai) (http.Handler, error) {
+// pegawai and bidang may be nil, in which case their CRUD pages and API
+// routes are not mounted.
+func New(registry []pages.Page, renderer *render.Renderer, webFS fs.FS, pegawai *handler.Pegawai, bidang *handler.Bidang) (http.Handler, error) {
 	staticFS, err := fs.Sub(webFS, "static")
 	if err != nil {
 		return nil, fmt.Errorf("static: %w", err)
@@ -69,6 +69,19 @@ func New(registry []pages.Page, renderer *render.Renderer, webFS fs.FS, pegawai 
 		mux.Get("/api/pegawai/{id}", pegawai.Get)
 		mux.Put("/api/pegawai/{id}", pegawai.Update)
 		mux.Delete("/api/pegawai/{id}", pegawai.Delete)
+	}
+
+	if bidang != nil {
+		mux.Get(pages.Bidang.Route, bidang.Page)
+		mux.Get(pages.BidangCreate.Route, bidang.CreateForm)
+		mux.Get(pages.BidangEdit.Route, bidang.EditForm)
+		mux.Get("/api/bidang", bidang.List)
+		mux.Post("/api/bidang", bidang.Create)
+		mux.Get("/api/bidang/datatable", bidang.Datatable)
+		mux.Get("/api/bidang/search", bidang.Search)
+		mux.Get("/api/bidang/{id}", bidang.Get)
+		mux.Put("/api/bidang/{id}", bidang.Update)
+		mux.Delete("/api/bidang/{id}", bidang.Delete)
 	}
 
 	if notFound, ok := byRoute["/pages/examples/404.html"]; ok {

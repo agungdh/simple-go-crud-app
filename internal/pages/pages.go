@@ -50,6 +50,43 @@ var PegawaiCreate = Page{
 	FooterClass: "main-footer",
 }
 
+// Bidang is the dynamic CRUD page. It is not part of Pages because it needs
+// data from the database and is mounted by the bidang handler instead.
+var Bidang = Page{
+	Route:       "/bidang",
+	Template:    "bidang.html",
+	Layout:      "main",
+	Title:       "AdminLTE 2 | Data Bidang",
+	BodyClass:   "hold-transition skin-blue sidebar-mini",
+	Active:      "bidang",
+	Sidebar:     "default",
+	FooterClass: "main-footer",
+}
+
+// BidangEdit is the edit form, mounted by the bidang handler.
+var BidangEdit = Page{
+	Route:       "/bidang/{id}/edit",
+	Template:    "bidang_form.html",
+	Layout:      "main",
+	Title:       "AdminLTE 2 | Edit Bidang",
+	BodyClass:   "hold-transition skin-blue sidebar-mini",
+	Active:      "bidang",
+	Sidebar:     "default",
+	FooterClass: "main-footer",
+}
+
+// BidangCreate is the add form, mounted by the bidang handler.
+var BidangCreate = Page{
+	Route:       "/bidang/create",
+	Template:    "bidang_form.html",
+	Layout:      "main",
+	Title:       "AdminLTE 2 | Tambah Bidang",
+	BodyClass:   "hold-transition skin-blue sidebar-mini",
+	Active:      "bidang",
+	Sidebar:     "default",
+	FooterClass: "main-footer",
+}
+
 // Pages is the set of static AdminLTE pages kept by this demo.
 var Pages = []Page{
 	{

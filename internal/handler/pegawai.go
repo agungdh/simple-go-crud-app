@@ -42,17 +42,18 @@ type pageData struct {
 }
 
 // datatableColumns maps DataTables column indexes to database columns.
-var datatableColumns = []string{"id", "nip", "nama", "jabatan", "email", "telepon", "alamat"}
+var datatableColumns = []string{"p.id", "p.nip", "p.nama", "p.jabatan", "b.nama", "p.email", "p.telepon", "p.alamat"}
 
 const maxSearchLength = 200
 
 type pegawaiPayload struct {
-	NIP     string `json:"nip"`
-	Nama    string `json:"nama"`
-	Jabatan string `json:"jabatan"`
-	Email   string `json:"email"`
-	Telepon string `json:"telepon"`
-	Alamat  string `json:"alamat"`
+	NIP      string `json:"nip"`
+	Nama     string `json:"nama"`
+	Jabatan  string `json:"jabatan"`
+	BidangID int64  `json:"bidang_id"`
+	Email    string `json:"email"`
+	Telepon  string `json:"telepon"`
+	Alamat   string `json:"alamat"`
 }
 
 func (p *pegawaiPayload) normalize() {
@@ -70,6 +71,9 @@ func (p *pegawaiPayload) validate() string {
 	}
 	if p.Nama == "" {
 		return "Nama wajib diisi"
+	}
+	if p.BidangID <= 0 {
+		return "Bidang wajib dipilih"
 	}
 	if p.Email != "" {
 		if _, err := mail.ParseAddress(p.Email); err != nil {
@@ -111,7 +115,7 @@ func (h *Pegawai) Datatable(w http.ResponseWriter, r *http.Request) {
 		search = string([]rune(search)[:maxSearchLength])
 	}
 
-	orderBy := "id"
+	orderBy := "p.id"
 	if index, err := strconv.Atoi(query.Get("order[0][column]")); err == nil && index >= 0 && index < len(datatableColumns) {
 		orderBy = datatableColumns[index]
 	}
@@ -230,12 +234,13 @@ func (h *Pegawai) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	item := &model.Pegawai{
-		NIP:     payload.NIP,
-		Nama:    payload.Nama,
-		Jabatan: payload.Jabatan,
-		Email:   payload.Email,
-		Telepon: payload.Telepon,
-		Alamat:  payload.Alamat,
+		NIP:      payload.NIP,
+		Nama:     payload.Nama,
+		Jabatan:  payload.Jabatan,
+		BidangID: payload.BidangID,
+		Email:    payload.Email,
+		Telepon:  payload.Telepon,
+		Alamat:   payload.Alamat,
 	}
 	if err := h.repo.Create(r.Context(), item); err != nil {
 		writeRepoError(w, err, "Gagal menyimpan data pegawai")
@@ -264,6 +269,7 @@ func (h *Pegawai) Update(w http.ResponseWriter, r *http.Request) {
 	item.NIP = payload.NIP
 	item.Nama = payload.Nama
 	item.Jabatan = payload.Jabatan
+	item.BidangID = payload.BidangID
 	item.Email = payload.Email
 	item.Telepon = payload.Telepon
 	item.Alamat = payload.Alamat

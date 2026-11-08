@@ -1,3 +1,7 @@
+{{define "page-css"}}
+<link rel="stylesheet" href="/plugins/select2/select2.min.css">
+{{end}}
+
 {{define "content"}}
 <div class="content-wrapper">
     <section class="content-header">
@@ -33,6 +37,14 @@
                   <input type="text" class="form-control" id="jabatan" name="jabatan" maxlength="100" value="{{with .Item}}{{.Jabatan}}{{end}}">
                 </div>
                 <div class="form-group">
+                  <label for="bidang_id">Bidang <span class="text-danger">*</span></label>
+                  <select class="form-control" id="bidang_id" name="bidang_id"
+                          data-search-url="/api/bidang/search" required style="width: 100%;">
+                    <option value=""></option>
+                    {{with .Item}}{{if .BidangID}}<option value="{{.BidangID}}" selected>{{.BidangNama}}</option>{{end}}{{end}}
+                  </select>
+                </div>
+                <div class="form-group">
                   <label for="email">Email</label>
                   <input type="email" class="form-control" id="email" name="email" maxlength="150" value="{{with .Item}}{{.Email}}{{end}}">
                 </div>
@@ -63,6 +75,8 @@
 <script src="/bower_components/jquery/dist/jquery.min.js"></script>
 <script src="/bower_components/bootstrap/dist/js/bootstrap.min.js"></script>
 <script src="/dist/js/adminlte.min.js"></script>
+<script src="/plugins/select2/select2.min.js"></script>
+<script src="/plugins/select2/i18n/id.js"></script>
 <script>
 (function () {
   'use strict';
@@ -82,8 +96,34 @@
     new FormData(form).forEach(function (value, key) {
       data[key] = value;
     });
+    data.bidang_id = data.bidang_id ? Number(data.bidang_id) : 0;
     return data;
   }
+
+  $('#bidang_id').select2({
+    width: '100%',
+    language: 'id',
+    allowClear: true,
+    placeholder: 'Cari bidang…',
+    minimumInputLength: 2,
+    ajax: {
+      url: $('#bidang_id').data('search-url'),
+      dataType: 'json',
+      delay: 250,
+      headers: { 'Accept': 'application/json' },
+      data: function (params) {
+        return { q: params.term || '' };
+      },
+      processResults: function (data) {
+        return {
+          results: (data.data || []).map(function (item) {
+            return { id: item.id, text: item.kode + ' — ' + item.nama };
+          })
+        };
+      },
+      cache: true
+    }
+  });
 
   form.addEventListener('submit', async function (event) {
     event.preventDefault();

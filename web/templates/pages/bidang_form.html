@@ -1,0 +1,112 @@
+{{define "content"}}
+<div class="content-wrapper">
+    <section class="content-header">
+      <h1>
+        {{if eq .Method "PUT"}}Edit Bidang{{else}}Tambah Bidang{{end}}
+        <small>{{if eq .Method "PUT"}}Perbarui data bidang{{else}}Masukkan data bidang baru{{end}}</small>
+      </h1>
+      <ol class="breadcrumb">
+        <li><a href="/starter.html"><i class="fa fa-dashboard"></i> Home</a></li>
+        <li><a href="/bidang">Bidang</a></li>
+        <li class="active">{{if eq .Method "PUT"}}Edit{{else}}Tambah{{end}}</li>
+      </ol>
+    </section>
+
+    <section class="content">
+      <div class="row">
+        <div class="col-md-8">
+          <div class="box box-primary">
+            <form id="form-bidang" data-action="{{.FormAction}}" data-method="{{.Method}}">
+              <div class="box-body">
+                <div class="alert" id="alert" style="display: none;"></div>
+
+                <div class="form-group">
+                  <label for="kode">Kode <span class="text-danger">*</span></label>
+                  <input type="text" class="form-control" id="kode" name="kode" maxlength="50" required value="{{with .Item}}{{.Kode}}{{end}}">
+                </div>
+                <div class="form-group">
+                  <label for="nama">Nama <span class="text-danger">*</span></label>
+                  <input type="text" class="form-control" id="nama" name="nama" maxlength="150" required value="{{with .Item}}{{.Nama}}{{end}}">
+                </div>
+              </div>
+              <div class="box-footer">
+                <button type="submit" class="btn btn-primary" id="btn-simpan">
+                  <i class="fa fa-save"></i> Simpan
+                </button>
+                <a href="/bidang" class="btn btn-default">Batal</a>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+{{end}}
+
+{{define "page-js"}}
+<script src="/bower_components/jquery/dist/jquery.min.js"></script>
+<script src="/bower_components/bootstrap/dist/js/bootstrap.min.js"></script>
+<script src="/dist/js/adminlte.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var form = document.getElementById('form-bidang');
+  var alertBox = document.getElementById('alert');
+  var submitButton = document.getElementById('btn-simpan');
+
+  function showError(message) {
+    alertBox.className = 'alert alert-danger';
+    alertBox.textContent = message;
+    alertBox.style.display = '';
+  }
+
+  function payload() {
+    var data = {};
+    new FormData(form).forEach(function (value, key) {
+      data[key] = value;
+    });
+    return data;
+  }
+
+  form.addEventListener('submit', async function (event) {
+    event.preventDefault();
+
+    var method = form.dataset.method;
+    var isEdit = method === 'PUT';
+
+    submitButton.disabled = true;
+    submitButton.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Menyimpan...';
+    alertBox.style.display = 'none';
+
+    try {
+      var response = await fetch(form.dataset.action, {
+        method: method,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload())
+      });
+
+      var body = null;
+      try {
+        body = await response.json();
+      } catch (err) {
+        body = null;
+      }
+
+      if (!response.ok) {
+        throw new Error((body && body.error) || 'Terjadi kesalahan (' + response.status + ')');
+      }
+
+      window.location.href = '/bidang?status=' + (isEdit ? 'updated' : 'created');
+    } catch (err) {
+      showError(err.message);
+      submitButton.disabled = false;
+      submitButton.innerHTML = '<i class="fa fa-save"></i> Simpan';
+    }
+  });
+})();
+</script>
+{{end}}

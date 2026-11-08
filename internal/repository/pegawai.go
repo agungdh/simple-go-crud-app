@@ -31,10 +31,20 @@ func NewPegawai(db *bun.DB) *PegawaiRepository {
 	return &PegawaiRepository{db: db}
 }
 
+// joinBidang adds the bidang join so aliased bidang columns are available.
+func joinBidang(q *bun.SelectQuery) *bun.SelectQuery {
+	return q.Join("LEFT JOIN bidang AS b ON b.id = p.bidang_id")
+}
+
+// withBidang joins the bidang table and exposes its name as bidang_nama.
+func withBidang(q *bun.SelectQuery) *bun.SelectQuery {
+	return joinBidang(q.Column("p.*").ColumnExpr("b.nama AS bidang_nama"))
+}
+
 // List returns every pegawai ordered by ID.
 func (r *PegawaiRepository) List(ctx context.Context) ([]model.Pegawai, error) {
 	items := make([]model.Pegawai, 0)
-	if err := r.db.NewSelect().Model(&items).OrderExpr("p.id ASC").Scan(ctx); err != nil {
+	if err := withBidang(r.db.NewSelect().Model(&items)).OrderExpr("p.id ASC").Scan(ctx); err != nil {
 		return nil, fmt.Errorf("list pegawai: %w", err)
 	}
 	return items, nil
@@ -57,14 +67,14 @@ func (r *PegawaiRepository) Query(ctx context.Context, q PegawaiQuery) ([]model.
 		return nil, 0, 0, fmt.Errorf("count pegawai: %w", err)
 	}
 
-	filtered, err := applySearch(r.db.NewSelect().Model((*model.Pegawai)(nil)), q.Search).Count(ctx)
+	filtered, err := joinBidang(applySearch(r.db.NewSelect().Model((*model.Pegawai)(nil)), q.Search)).Count(ctx)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("count filtered pegawai: %w", err)
 	}
 
 	items := make([]model.Pegawai, 0)
-	list := applySearch(r.db.NewSelect().Model(&items), q.Search).
-		OrderExpr("p." + q.OrderBy + " " + q.OrderDir).
+	list := withBidang(applySearch(r.db.NewSelect().Model(&items), q.Search)).
+		OrderExpr(q.OrderBy + " " + q.OrderDir).
 		Limit(int64(q.Limit)).
 		Offset(int64(q.Offset))
 	if err := list.Scan(ctx); err != nil {
@@ -86,6 +96,8 @@ func applySearch(q *bun.SelectQuery, search string) *bun.SelectQuery {
 			Where("p.nip LIKE ? ESCAPE '\\'", pattern).
 			WhereOr("p.nama LIKE ? ESCAPE '\\'", pattern).
 			WhereOr("p.jabatan LIKE ? ESCAPE '\\'", pattern).
+			WhereOr("b.kode LIKE ? ESCAPE '\\'", pattern).
+			WhereOr("b.nama LIKE ? ESCAPE '\\'", pattern).
 			WhereOr("p.email LIKE ? ESCAPE '\\'", pattern).
 			WhereOr("p.telepon LIKE ? ESCAPE '\\'", pattern).
 			WhereOr("p.alamat LIKE ? ESCAPE '\\'", pattern)
@@ -99,7 +111,7 @@ func escapeLike(s string) string {
 // Get returns a single pegawai by ID.
 func (r *PegawaiRepository) Get(ctx context.Context, id int64) (*model.Pegawai, error) {
 	p := new(model.Pegawai)
-	err := r.db.NewSelect().Model(p).Where("p.id = ?", id).Scan(ctx)
+	err := withBidang(r.db.NewSelect().Model(p)).Where("p.id = ?", id).Scan(ctx)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -128,7 +140,7 @@ func (r *PegawaiRepository) Update(ctx context.Context, p *model.Pegawai) error 
 
 	res, err := r.db.NewUpdate().
 		Model(p).
-		Column("nip", "nama", "jabatan", "email", "telepon", "alamat", "updated_at").
+		Column("nip", "nama", "jabatan", "bidang_id", "email", "telepon", "alamat", "updated_at").
 		Where("p.id = ?", p.ID).
 		Exec(ctx)
 	if err != nil {

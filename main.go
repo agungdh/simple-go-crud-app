@@ -37,8 +37,9 @@ func main() {
 	}
 
 	pegawai := handler.NewPegawai(repository.NewPegawai(db), renderer, pages.Pegawai)
+	bidang := handler.NewBidang(repository.NewBidang(db), renderer, pages.Bidang)
 
-	httpHandler, err := router.New(pages.Pages, renderer, web.FS, pegawai)
+	httpHandler, err := router.New(pages.Pages, renderer, web.FS, pegawai, bidang)
 	if err != nil {
 		log.Fatal(err)
 	}
