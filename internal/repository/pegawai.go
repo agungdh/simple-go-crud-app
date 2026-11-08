@@ -40,6 +40,62 @@ func (r *PegawaiRepository) List(ctx context.Context) ([]model.Pegawai, error) {
 	return items, nil
 }
 
+// PegawaiQuery describes a server-side DataTables request.
+type PegawaiQuery struct {
+	Search   string
+	OrderBy  string
+	OrderDir string
+	Limit    int
+	Offset   int
+}
+
+// Query returns a filtered, sorted page of pegawai along with the total and
+// filtered row counts expected by DataTables server-side processing.
+func (r *PegawaiRepository) Query(ctx context.Context, q PegawaiQuery) ([]model.Pegawai, int64, int64, error) {
+	total, err := r.db.NewSelect().Model((*model.Pegawai)(nil)).Count(ctx)
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf("count pegawai: %w", err)
+	}
+
+	filtered, err := applySearch(r.db.NewSelect().Model((*model.Pegawai)(nil)), q.Search).Count(ctx)
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf("count filtered pegawai: %w", err)
+	}
+
+	items := make([]model.Pegawai, 0)
+	list := applySearch(r.db.NewSelect().Model(&items), q.Search).
+		OrderExpr("p." + q.OrderBy + " " + q.OrderDir).
+		Limit(int64(q.Limit)).
+		Offset(int64(q.Offset))
+	if err := list.Scan(ctx); err != nil {
+		return nil, 0, 0, fmt.Errorf("query pegawai: %w", err)
+	}
+
+	return items, total, filtered, nil
+}
+
+func applySearch(q *bun.SelectQuery, search string) *bun.SelectQuery {
+	search = strings.TrimSpace(search)
+	if search == "" {
+		return q
+	}
+
+	pattern := "%" + escapeLike(search) + "%"
+	return q.WhereGroup(" AND ", func(q *bun.SelectQuery) *bun.SelectQuery {
+		return q.
+			Where("p.nip LIKE ? ESCAPE '\\'", pattern).
+			WhereOr("p.nama LIKE ? ESCAPE '\\'", pattern).
+			WhereOr("p.jabatan LIKE ? ESCAPE '\\'", pattern).
+			WhereOr("p.email LIKE ? ESCAPE '\\'", pattern).
+			WhereOr("p.telepon LIKE ? ESCAPE '\\'", pattern).
+			WhereOr("p.alamat LIKE ? ESCAPE '\\'", pattern)
+	})
+}
+
+func escapeLike(s string) string {
+	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
+}
+
 // Get returns a single pegawai by ID.
 func (r *PegawaiRepository) Get(ctx context.Context, id int64) (*model.Pegawai, error) {
 	p := new(model.Pegawai)

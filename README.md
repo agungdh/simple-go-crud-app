@@ -17,7 +17,7 @@ berupa **satu file yang bisa langsung dibagikan** tanpa folder `web/`.
 | ORM         | `github.com/uptrace/bun` + `sqlitedialect`             |
 | Migration   | `github.com/pressly/goose/v3` (embedded, auto-migrate) |
 | Template    | `html/template` + `go:embed`                           |
-| Tabel       | DataTables 1.13 (integrasi Bootstrap 3, aset lokal)    |
+| Tabel       | DataTables 1.13 server-side processing (Bootstrap 3)   |
 | Form submit | `fetch()` dari JavaScript, API JSON                    |
 
 Migration dijalankan otomatis saat aplikasi start. File migration tetap
@@ -59,7 +59,8 @@ File `*.db`, `*.db-shm`, dan `*.db-wal` sudah di-ignore oleh git.
 
 CRUD pegawai memakai **multi-page**: setiap aksi punya halaman sendiri.
 
-- `/pegawai` — tabel daftar pegawai (dirender server-side).
+- `/pegawai` — tabel daftar pegawai (DataTables server-side: cari, urut, dan
+  paginasi diproses di server lewat `/api/pegawai/datatable`).
 - `/pegawai/create` — halaman form tambah.
 - `/pegawai/{id}/edit` — halaman form edit dengan data terisi.
 
@@ -76,6 +77,7 @@ Field pegawai: `nip` (unik, wajib), `nama` (wajib), `jabatan`, `email`,
 | Method | Path                | Keterangan                       |
 | ------ | ------------------- | -------------------------------- |
 | GET    | `/api/pegawai`      | Daftar pegawai                   |
+| GET    | `/api/pegawai/datatable` | Data server-side untuk DataTables |
 | POST   | `/api/pegawai`      | Tambah pegawai                   |
 | GET    | `/api/pegawai/{id}` | Detail pegawai                   |
 | PUT    | `/api/pegawai/{id}` | Ubah pegawai                     |

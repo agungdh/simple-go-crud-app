@@ -49,27 +49,7 @@
                   <th style="width: 150px;">Aksi</th>
                 </tr>
               </thead>
-              <tbody id="pegawai-rows">
-                {{range .Pegawai}}
-                <tr data-id="{{.ID}}">
-                  <td>{{.ID}}</td>
-                  <td>{{.NIP}}</td>
-                  <td>{{.Nama}}</td>
-                  <td>{{.Jabatan}}</td>
-                  <td>{{.Email}}</td>
-                  <td>{{.Telepon}}</td>
-                  <td>{{.Alamat}}</td>
-                  <td>
-                    <a href="/pegawai/{{.ID}}/edit" class="btn btn-warning btn-xs">
-                      <i class="fa fa-pencil"></i> Edit
-                    </a>
-                    <button type="button" class="btn btn-danger btn-xs btn-hapus" data-id="{{.ID}}" data-nama="{{.Nama}}">
-                      <i class="fa fa-trash"></i> Hapus
-                    </button>
-                  </td>
-                </tr>
-                {{end}}
-              </tbody>
+              <tbody id="pegawai-rows"></tbody>
             </table>
           </div>
         </div>
@@ -97,6 +77,25 @@
       .addClass('alert-' + type)
       .text(message)
       .show();
+  }
+
+  function escapeHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function actionButtons(row) {
+    var id = encodeURIComponent(row.id);
+    var nama = escapeHtml(row.nama);
+    return '<a href="/pegawai/' + id + '/edit" class="btn btn-warning btn-xs">' +
+      '<i class="fa fa-pencil"></i> Edit</a> ' +
+      '<button type="button" class="btn btn-danger btn-xs btn-hapus" ' +
+      'data-id="' + id + '" data-nama="' + nama + '">' +
+      '<i class="fa fa-trash"></i> Hapus</button>';
   }
 
   async function remove(id, nama) {
@@ -131,11 +130,31 @@
   });
 
   $('#tabel-pegawai').DataTable({
+    processing: true,
+    serverSide: true,
     autoWidth: false,
     pageLength: 10,
     order: [[0, 'asc']],
-    columnDefs: [
-      { targets: 7, orderable: false, searchable: false }
+    ajax: {
+      url: '/api/pegawai/datatable',
+      type: 'GET'
+    },
+    columns: [
+      { data: 'id' },
+      { data: 'nip' },
+      { data: 'nama' },
+      { data: 'jabatan' },
+      { data: 'email' },
+      { data: 'telepon' },
+      { data: 'alamat' },
+      {
+        data: null,
+        orderable: false,
+        searchable: false,
+        render: function (data, type, row) {
+          return actionButtons(row);
+        }
+      }
     ],
     language: {
       emptyTable: 'Belum ada data pegawai.',

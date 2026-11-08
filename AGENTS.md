@@ -16,8 +16,8 @@ JSON. Database SQLite diakses lewat ORM Bun, dan migration memakai goose.
 - ORM: `github.com/uptrace/bun` + `bun/dialect/sqlitedialect`.
 - Migration: `github.com/pressly/goose/v3`, file SQL di
   `internal/database/migrations/`, di-embed dan dijalankan otomatis saat start.
-- Tabel daftar memakai DataTables 1.13 + integrasi Bootstrap 3, aset lokal di
-  `web/static/plugins/datatables/` (tanpa CDN).
+- Tabel daftar memakai DataTables 1.13 server-side processing + integrasi
+  Bootstrap 3, aset lokal di `web/static/plugins/datatables/` (tanpa CDN).
 - Template & aset di-embed dengan `go:embed` (`web/assets.go`).
 
 Jangan menambah driver SQLite berbasis CGO; build harus tetap jalan dengan
@@ -73,14 +73,22 @@ Selalu jalankan `gofmt`, `go vet ./...`, dan `go test ./...` sebelum selesai.
 
 ### Tabel daftar (DataTables)
 
-- Tabel pegawai memakai DataTables 1.13 dengan integrasi Bootstrap 3; aset
-  dimuat lokal dari `/plugins/datatables/` (CSS di `page-css`, JS di `page-js`).
-- Baris tetap dirender server-side oleh Go; DataTables hanya menangani cari,
-  urut, dan paginasi di sisi klien.
+- Tabel pegawai memakai DataTables 1.13 dengan **server-side processing**;
+  aset dimuat lokal dari `/plugins/datatables/`.
+- Endpoint `GET /api/pegawai/datatable` menerima parameter DataTables
+  (`draw`, `start`, `length`, `search[value]`, `order[0][column]`,
+  `order[0][dir]`) dan mengembalikan
+  `{draw, recordsTotal, recordsFiltered, data}`.
+- Pencarian, pengurutan, dan paginasi dilakukan di `repository.Query`, bukan di
+  browser. Jangan mengubah tabel kembali ke mode client-side.
+- Kolom order dipetakan lewat whitelist `datatableColumns`; arah hanya
+  `asc`/`desc`. Jangan pernah memasukkan input user langsung ke `OrderExpr`.
+- Batasi `length` (maksimal 100) dan panjang kata kunci pencarian.
+- Escape wildcard `%`, `_`, dan `\` saat membangun pola `LIKE`.
 - Jangan menambahkan baris placeholder "belum ada data" ke `<tbody>`; gunakan
-  opsi `language.emptyTable` agar tidak dianggap sebagai data.
-- Kolom aksi harus `orderable: false, searchable: false` di `columnDefs`.
-- Inisialisasi `DataTable()` cukup sekali setelah baris selesai dirender.
+  opsi `language.emptyTable`.
+- Kolom aksi diatur `orderable: false, searchable: false`; render tombolnya
+  dengan HTML yang di-escape.
 
 ### Template & render
 

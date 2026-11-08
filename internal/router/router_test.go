@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -180,7 +182,7 @@ func TestPegawaiPageRenders(t *testing.T) {
 	}
 
 	body := rec.Body.String()
-	for _, want := range []string{"Data Pegawai", "Tambah Pegawai", "/pegawai", `id="tabel-pegawai"`, "/plugins/datatables/jquery.dataTables.min.js"} {
+	for _, want := range []string{"Data Pegawai", "Tambah Pegawai", "/pegawai", `id="tabel-pegawai"`, "/plugins/datatables/jquery.dataTables.min.js", "serverSide: true", "/api/pegawai/datatable"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("body does not contain %q", want)
 		}
@@ -333,5 +335,107 @@ func TestPegawaiValidation(t *testing.T) {
 
 	if rec := get(handler, "/api/pegawai/abc"); rec.Code != http.StatusBadRequest {
 		t.Fatalf("invalid id status = %d, want 400", rec.Code)
+	}
+}
+
+type datatableResponse struct {
+	Draw            int   `json:"draw"`
+	RecordsTotal    int64 `json:"recordsTotal"`
+	RecordsFiltered int64 `json:"recordsFiltered"`
+	Data            []struct {
+		ID   int64  `json:"id"`
+		NIP  string `json:"nip"`
+		Nama string `json:"nama"`
+	} `json:"data"`
+}
+
+func TestPegawaiDatatable(t *testing.T) {
+	handler := newHandler(t)
+
+	for i := 1; i <= 12; i++ {
+		rec := send(handler, http.MethodPost, "/api/pegawai", map[string]string{
+			"nip":  fmt.Sprintf("nip-%02d", i),
+			"nama": fmt.Sprintf("Pegawai %02d", i),
+		})
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("seed %d: status = %d, body = %s", i, rec.Code, rec.Body.String())
+		}
+	}
+
+	request := func(params url.Values) datatableResponse {
+		t.Helper()
+		rec := get(handler, "/api/pegawai/datatable?"+params.Encode())
+		if rec.Code != http.StatusOK {
+			t.Fatalf("datatable status = %d, body = %s", rec.Code, rec.Body.String())
+		}
+		var out datatableResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+			t.Fatalf("decode datatable: %v", err)
+		}
+		return out
+	}
+
+	first := request(url.Values{
+		"draw":             {"1"},
+		"start":            {"0"},
+		"length":           {"5"},
+		"order[0][column]": {"0"},
+		"order[0][dir]":    {"asc"},
+	})
+	if first.Draw != 1 || first.RecordsTotal != 12 || first.RecordsFiltered != 12 {
+		t.Fatalf("unexpected counters: %+v", first)
+	}
+	if len(first.Data) != 5 || first.Data[0].NIP != "nip-01" {
+		t.Fatalf("unexpected first page: %+v", first.Data)
+	}
+
+	third := request(url.Values{
+		"draw":             {"2"},
+		"start":            {"10"},
+		"length":           {"5"},
+		"order[0][column]": {"0"},
+		"order[0][dir]":    {"asc"},
+	})
+	if len(third.Data) != 2 || third.Data[0].ID != 11 {
+		t.Fatalf("unexpected third page: %+v", third.Data)
+	}
+
+	desc := request(url.Values{
+		"start":            {"0"},
+		"length":           {"5"},
+		"order[0][column]": {"2"},
+		"order[0][dir]":    {"desc"},
+	})
+	if len(desc.Data) == 0 || desc.Data[0].Nama != "Pegawai 12" {
+		t.Fatalf("unexpected desc order: %+v", desc.Data)
+	}
+
+	search := request(url.Values{
+		"start":         {"0"},
+		"length":        {"5"},
+		"search[value]": {"Pegawai 0"},
+	})
+	if search.RecordsTotal != 12 || search.RecordsFiltered != 9 || len(search.Data) != 5 {
+		t.Fatalf("unexpected search result: %+v", search)
+	}
+
+	none := request(url.Values{
+		"start":         {"0"},
+		"length":        {"5"},
+		"search[value]": {"tidak-ada"},
+	})
+	if none.RecordsFiltered != 0 || len(none.Data) != 0 {
+		t.Fatalf("unexpected empty search result: %+v", none)
+	}
+
+	// Unknown order column must fall back safely instead of reaching SQL.
+	fallback := request(url.Values{
+		"start":            {"0"},
+		"length":           {"5"},
+		"order[0][column]": {"99"},
+		"order[0][dir]":    {"drop table"},
+	})
+	if len(fallback.Data) != 5 || fallback.Data[0].ID != 1 {
+		t.Fatalf("unexpected fallback order: %+v", fallback.Data)
 	}
 }

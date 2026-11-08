@@ -9,6 +9,7 @@ import (
 	"net/mail"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 
@@ -34,12 +35,16 @@ func NewPegawai(repo *repository.PegawaiRepository, renderer *render.Renderer, p
 
 type pageData struct {
 	pages.Page
-	Pegawai    []model.Pegawai
 	Item       *model.Pegawai
 	FormAction string
 	Method     string
 	Status     string
 }
+
+// datatableColumns maps DataTables column indexes to database columns.
+var datatableColumns = []string{"id", "nip", "nama", "jabatan", "email", "telepon", "alamat"}
+
+const maxSearchLength = 200
 
 type pegawaiPayload struct {
 	NIP     string `json:"nip"`
@@ -74,21 +79,74 @@ func (p *pegawaiPayload) validate() string {
 	return ""
 }
 
-// Page renders the pegawai list page.
+// Page renders the pegawai list page. Rows are loaded by DataTables from
+// /api/pegawai/datatable, so no data is fetched here.
 func (h *Pegawai) Page(w http.ResponseWriter, r *http.Request) {
-	items, err := h.repo.List(r.Context())
+	h.render(w, h.page, pageData{
+		Page:   h.page,
+		Status: r.URL.Query().Get("status"),
+	})
+}
+
+// Datatable returns a server-side processed page for DataTables.
+func (h *Pegawai) Datatable(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+
+	draw := queryInt(query.Get("draw"), 0)
+	start := queryInt(query.Get("start"), 0)
+	if start < 0 {
+		start = 0
+	}
+
+	length := queryInt(query.Get("length"), 10)
+	if length == -1 || length > 100 {
+		length = 100
+	}
+	if length <= 0 {
+		length = 10
+	}
+
+	search := strings.TrimSpace(query.Get("search[value]"))
+	if utf8.RuneCountInString(search) > maxSearchLength {
+		search = string([]rune(search)[:maxSearchLength])
+	}
+
+	orderBy := "id"
+	if index, err := strconv.Atoi(query.Get("order[0][column]")); err == nil && index >= 0 && index < len(datatableColumns) {
+		orderBy = datatableColumns[index]
+	}
+	orderDir := "asc"
+	if strings.EqualFold(query.Get("order[0][dir]"), "desc") {
+		orderDir = "desc"
+	}
+
+	items, total, filtered, err := h.repo.Query(r.Context(), repository.PegawaiQuery{
+		Search:   search,
+		OrderBy:  orderBy,
+		OrderDir: orderDir,
+		Limit:    length,
+		Offset:   start,
+	})
 	if err != nil {
-		log.Printf("pegawai page: %v", err)
-		http.Error(w, "internal server error", http.StatusInternalServerError)
+		log.Printf("pegawai datatable: %v", err)
+		writeError(w, http.StatusInternalServerError, "Gagal memuat data pegawai")
 		return
 	}
 
-	data := pageData{
-		Page:    h.page,
-		Pegawai: items,
-		Status:  r.URL.Query().Get("status"),
+	writeJSON(w, http.StatusOK, map[string]any{
+		"draw":            draw,
+		"recordsTotal":    total,
+		"recordsFiltered": filtered,
+		"data":            items,
+	})
+}
+
+func queryInt(raw string, fallback int) int {
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return fallback
 	}
-	h.render(w, h.page, data)
+	return value
 }
 
 // CreateForm renders the add-pegawai page.

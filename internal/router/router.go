@@ -65,6 +65,7 @@ func New(registry []pages.Page, renderer *render.Renderer, webFS fs.FS, pegawai 
 		mux.Get(pages.PegawaiEdit.Route, pegawai.EditForm)
 		mux.Get("/api/pegawai", pegawai.List)
 		mux.Post("/api/pegawai", pegawai.Create)
+		mux.Get("/api/pegawai/datatable", pegawai.Datatable)
 		mux.Get("/api/pegawai/{id}", pegawai.Get)
 		mux.Put("/api/pegawai/{id}", pegawai.Update)
 		mux.Delete("/api/pegawai/{id}", pegawai.Delete)
