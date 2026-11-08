@@ -83,9 +83,9 @@ func (p *pegawaiPayload) validate() string {
 	return ""
 }
 
-// Page renders the pegawai list page. Rows are loaded by DataTables from
-// /api/pegawai/datatable, so no data is fetched here.
-func (h *Pegawai) Page(w http.ResponseWriter, r *http.Request) {
+// Index renders the pegawai list page. Rows are loaded by DataTables from
+// /pegawai/datatable, so no data is fetched here.
+func (h *Pegawai) Index(w http.ResponseWriter, r *http.Request) {
 	h.render(w, h.page, pageData{
 		Page:   h.page,
 		Status: r.URL.Query().Get("status"),
@@ -153,18 +153,18 @@ func queryInt(raw string, fallback int) int {
 	return value
 }
 
-// CreateForm renders the add-pegawai page.
-func (h *Pegawai) CreateForm(w http.ResponseWriter, r *http.Request) {
+// Create renders the add-pegawai page.
+func (h *Pegawai) Create(w http.ResponseWriter, r *http.Request) {
 	page := pages.PegawaiCreate
 	h.render(w, page, pageData{
 		Page:       page,
-		FormAction: "/api/pegawai",
+		FormAction: pages.Pegawai.Route,
 		Method:     http.MethodPost,
 	})
 }
 
-// EditForm renders the edit-pegawai page with the current values filled in.
-func (h *Pegawai) EditForm(w http.ResponseWriter, r *http.Request) {
+// Edit renders the edit-pegawai page with the current values filled in.
+func (h *Pegawai) Edit(w http.ResponseWriter, r *http.Request) {
 	page := pages.PegawaiEdit
 
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
@@ -187,7 +187,7 @@ func (h *Pegawai) EditForm(w http.ResponseWriter, r *http.Request) {
 	h.render(w, page, pageData{
 		Page:       page,
 		Item:       item,
-		FormAction: "/api/pegawai/" + strconv.FormatInt(id, 10),
+		FormAction: pages.Pegawai.Route + "/" + strconv.FormatInt(id, 10),
 		Method:     http.MethodPut,
 	})
 }
@@ -200,34 +200,8 @@ func (h *Pegawai) render(w http.ResponseWriter, page pages.Page, data pageData) 
 	}
 }
 
-// List returns every pegawai as JSON.
-func (h *Pegawai) List(w http.ResponseWriter, r *http.Request) {
-	items, err := h.repo.List(r.Context())
-	if err != nil {
-		log.Printf("pegawai list: %v", err)
-		writeError(w, http.StatusInternalServerError, "Gagal memuat data pegawai")
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"data": items})
-}
-
-// Get returns a single pegawai as JSON.
-func (h *Pegawai) Get(w http.ResponseWriter, r *http.Request) {
-	id, ok := parseID(w, r)
-	if !ok {
-		return
-	}
-
-	item, err := h.repo.Get(r.Context(), id)
-	if err != nil {
-		writeRepoError(w, err, "Gagal memuat data pegawai")
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"data": item})
-}
-
-// Create stores a new pegawai and returns it as JSON.
-func (h *Pegawai) Create(w http.ResponseWriter, r *http.Request) {
+// Store creates a new pegawai and returns it as JSON.
+func (h *Pegawai) Store(w http.ResponseWriter, r *http.Request) {
 	payload, ok := decodePayload(w, r)
 	if !ok {
 		return
@@ -281,8 +255,8 @@ func (h *Pegawai) Update(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"data": item})
 }
 
-// Delete removes a pegawai.
-func (h *Pegawai) Delete(w http.ResponseWriter, r *http.Request) {
+// Destroy removes a pegawai.
+func (h *Pegawai) Destroy(w http.ResponseWriter, r *http.Request) {
 	id, ok := parseID(w, r)
 	if !ok {
 		return

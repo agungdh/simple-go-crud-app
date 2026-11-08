@@ -39,7 +39,7 @@
                 <div class="form-group">
                   <label for="bidang_id">Bidang <span class="text-danger">*</span></label>
                   <select class="form-control" id="bidang_id" name="bidang_id"
-                          data-search-url="/api/bidang/search" required style="width: 100%;">
+                          data-search-url="/bidang/search" required style="width: 100%;">
                     <option value=""></option>
                     {{with .Item}}{{if .BidangID}}<option value="{{.BidangID}}" selected>{{.BidangNama}}</option>{{end}}{{end}}
                   </select>

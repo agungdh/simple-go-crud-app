@@ -60,28 +60,24 @@ func New(registry []pages.Page, renderer *render.Renderer, webFS fs.FS, pegawai 
 	}
 
 	if pegawai != nil {
-		mux.Get(pages.Pegawai.Route, pegawai.Page)
-		mux.Get(pages.PegawaiCreate.Route, pegawai.CreateForm)
-		mux.Get(pages.PegawaiEdit.Route, pegawai.EditForm)
-		mux.Get("/api/pegawai", pegawai.List)
-		mux.Post("/api/pegawai", pegawai.Create)
-		mux.Get("/api/pegawai/datatable", pegawai.Datatable)
-		mux.Get("/api/pegawai/{id}", pegawai.Get)
-		mux.Put("/api/pegawai/{id}", pegawai.Update)
-		mux.Delete("/api/pegawai/{id}", pegawai.Delete)
+		mux.Get(pages.Pegawai.Route, pegawai.Index)
+		mux.Get(pages.Pegawai.Route+"/datatable", pegawai.Datatable)
+		mux.Get(pages.PegawaiCreate.Route, pegawai.Create)
+		mux.Post(pages.Pegawai.Route, pegawai.Store)
+		mux.Get(pages.PegawaiEdit.Route, pegawai.Edit)
+		mux.Put(pages.Pegawai.Route+"/{id}", pegawai.Update)
+		mux.Delete(pages.Pegawai.Route+"/{id}", pegawai.Destroy)
 	}
 
 	if bidang != nil {
-		mux.Get(pages.Bidang.Route, bidang.Page)
-		mux.Get(pages.BidangCreate.Route, bidang.CreateForm)
-		mux.Get(pages.BidangEdit.Route, bidang.EditForm)
-		mux.Get("/api/bidang", bidang.List)
-		mux.Post("/api/bidang", bidang.Create)
-		mux.Get("/api/bidang/datatable", bidang.Datatable)
-		mux.Get("/api/bidang/search", bidang.Search)
-		mux.Get("/api/bidang/{id}", bidang.Get)
-		mux.Put("/api/bidang/{id}", bidang.Update)
-		mux.Delete("/api/bidang/{id}", bidang.Delete)
+		mux.Get(pages.Bidang.Route, bidang.Index)
+		mux.Get(pages.Bidang.Route+"/datatable", bidang.Datatable)
+		mux.Get(pages.Bidang.Route+"/search", bidang.Search)
+		mux.Get(pages.BidangCreate.Route, bidang.Create)
+		mux.Post(pages.Bidang.Route, bidang.Store)
+		mux.Get(pages.BidangEdit.Route, bidang.Edit)
+		mux.Put(pages.Bidang.Route+"/{id}", bidang.Update)
+		mux.Delete(pages.Bidang.Route+"/{id}", bidang.Destroy)
 	}
 
 	if notFound, ok := byRoute["/pages/examples/404.html"]; ok {

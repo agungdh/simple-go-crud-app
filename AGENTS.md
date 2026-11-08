@@ -48,9 +48,9 @@ Selalu jalankan `gofmt`, `go vet ./...`, dan `go test ./...` sebelum selesai.
 | `main.go` | flag, buka DB, migrate, wiring handler, start server |
 | `internal/pages/pages.go` | definisi `Page`; `Pages` untuk halaman statis, `Pegawai`/`Bidang` untuk halaman dinamis |
 | `internal/render/render.go` | parse/cache template per layout+page, `Render`/`RenderData` |
-| `internal/router/router.go` | mount aset, halaman, API CRUD pegawai & bidang, dan 404 |
-| `internal/handler/pegawai.go` | handler HTML + JSON API pegawai, validasi request, mapping error |
-| `internal/handler/bidang.go` | handler HTML + JSON API bidang, termasuk endpoint autocomplete select2 |
+| `internal/router/router.go` | mount aset, halaman, route resource pegawai & bidang, dan 404 |
+| `internal/handler/pegawai.go` | handler resource pegawai (Index/Create/Store/Edit/Update/Destroy + Datatable), validasi request, mapping error |
+| `internal/handler/bidang.go` | handler resource bidang (termasuk endpoint autocomplete select2) |
 | `internal/repository/pegawai.go` | query Bun pegawai (JOIN bidang), error domain (`ErrNotFound`, `ErrDuplicateNIP`) |
 | `internal/repository/bidang.go` | query Bun bidang, error domain (`ErrNotFound`, `ErrDuplicateKode`, `ErrInUse`) |
 | `internal/model/pegawai.go` | entity pegawai + tag Bun/JSON (termasuk `bidang_id`, `bidang_nama`) |
@@ -61,26 +61,48 @@ Selalu jalankan `gofmt`, `go vet ./...`, dan `go test ./...` sebelum selesai.
 
 ## Konvensi wajib
 
+### Routing (gaya resource Laravel)
+
+- Nama aksi handler mengikuti resource controller Laravel: `Index`, `Create`,
+  `Store`, `Edit`, `Update`, `Destroy`.
+- Route mengikuti pola resource, **tanpa prefix `/api`**:
+  - `GET /pegawai` → `Index` (halaman tabel; DataTables memuat baris via
+    `GET /pegawai/datatable`).
+  - `GET /pegawai/create` → `Create` (halaman form tambah).
+  - `POST /pegawai` → `Store` (API JSON, kembalikan `201` + data).
+  - `GET /pegawai/{id}/edit` → `Edit` (halaman form edit).
+  - `PUT /pegawai/{id}` → `Update` (API JSON).
+  - `DELETE /pegawai/{id}` → `Destroy` (API JSON, `204`).
+  - Modul bidang mengikuti pola yang sama; tambahan endpoint pendukung:
+    `GET /bidang/datatable` dan `GET /bidang/search?q=`.
+- Tidak ada endpoint JSON `index`/`show` terpisah; halaman HTML `Index`/`Edit`
+  yang menyajikan data, dan tabel memakai endpoint `datatable`.
+- Route didaftarkan di `internal/router/router.go` memakai konstanta
+  `pages.Pegawai.Route` / `pages.Bidang.Route` (bukan string hardcoded), supaya
+  path halaman dan path API selalu konsisten.
+- Jangan menambah prefix `/api` pada route baru.
+
 ### Form submission
 
 - Arsitektur **multi-page**: daftar di `/pegawai`, form tambah di
   `/pegawai/create`, form edit di `/pegawai/{id}/edit`. Modul bidang mengikuti
   pola yang sama (`/bidang`, `/bidang/create`, `/bidang/{id}/edit`). Jangan
   memakai modal untuk CRUD.
-- **Semua submit form harus lewat `fetch()`** ke endpoint `/api/...` yang
-  mengembalikan JSON. Jangan membuat handler POST yang merender HTML.
+- **Semua submit form harus lewat `fetch()`** ke route resource (`POST /pegawai`
+  atau `PUT /pegawai/{id}`) yang mengembalikan JSON. Jangan membuat handler POST
+  yang merender HTML.
 - Set `Content-Type: application/json` dan kirim body JSON.
 - Setelah mutasi berhasil, redirect ke `/pegawai?status=created|updated|deleted`
   (atau `/bidang?status=...`); halaman daftar menampilkan notifikasi dari query
   `status`.
 - Jika API mengembalikan error, tampilkan pesannya di halaman form tanpa reload.
 - Link edit memakai `<a href="/pegawai/{id}/edit">`, bukan handler JS.
-- Hapus data memakai `fetch()` DELETE lalu redirect ke daftar; tombol aksi
-  memakai event delegation pada `<tbody>`.
+- Hapus data memakai `fetch()` DELETE ke `/pegawai/{id}` lalu redirect ke daftar;
+  tombol aksi memakai event delegation pada `<tbody>`.
 - Saat membangun elemen dari data user, gunakan `textContent` (bukan
   `innerHTML`) untuk mencegah XSS.
 - Field bidang pada form pegawai memakai Select2 dengan autocomplete
-  server-side ke `GET /api/bidang/search?q=`. `<select name="bidang_id">`
+  server-side ke `GET /bidang/search?q=`. `<select name="bidang_id">`
   ikut terkirim lewat `FormData`, tetapi nilainya **wajib dikonversi ke
   Number** sebelum `JSON.stringify` agar bisa di-decode ke `int64`.
 
@@ -88,7 +110,7 @@ Selalu jalankan `gofmt`, `go vet ./...`, dan `go test ./...` sebelum selesai.
 
 - Tabel pegawai dan bidang memakai DataTables 1.13 dengan **server-side
   processing**; aset dimuat lokal dari `/plugins/datatables/`.
-- Endpoint `GET /api/pegawai/datatable` dan `GET /api/bidang/datatable`
+- Endpoint `GET /pegawai/datatable` dan `GET /bidang/datatable`
   menerima parameter DataTables (`draw`, `start`, `length`, `search[value]`,
   `order[0][column]`, `order[0][dir]`) dan mengembalikan
   `{draw, recordsTotal, recordsFiltered, data}`.
@@ -157,12 +179,12 @@ Selalu jalankan `gofmt`, `go vet ./...`, dan `go test ./...` sebelum selesai.
 
 ### API & error
 
-- Sukses: `{"data": ...}` (list/detail/mutasi), delete mengembalikan `204`.
+- Sukses: `{"data": ...}` (datatable/detail/mutasi), destroy mengembalikan `204`.
 - Error: `{"error": "pesan"}` dengan status yang sesuai: `400`, `404`, `409`,
   `422`, `500`.
 - Trim input dan validasi di handler. Field wajib pegawai: `nip`, `nama`,
   `bidang_id`; email harus valid jika diisi. Field wajib bidang: `kode`, `nama`.
-- Endpoint pendukung: `GET /api/bidang/search?q=` mengembalikan
+- Endpoint pendukung: `GET /bidang/search?q=` mengembalikan
   `{"data": [{id, kode, nama}]}` untuk Select2 (limit 20).
 - Gunakan `http.MaxBytesReader` untuk membatasi body request.
 - Jangan bocorkan error internal ke klien; log detailnya di server.

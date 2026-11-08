@@ -41,15 +41,6 @@ func withBidang(q *bun.SelectQuery) *bun.SelectQuery {
 	return joinBidang(q.Column("p.*").ColumnExpr("b.nama AS bidang_nama"))
 }
 
-// List returns every pegawai ordered by ID.
-func (r *PegawaiRepository) List(ctx context.Context) ([]model.Pegawai, error) {
-	items := make([]model.Pegawai, 0)
-	if err := withBidang(r.db.NewSelect().Model(&items)).OrderExpr("p.id ASC").Scan(ctx); err != nil {
-		return nil, fmt.Errorf("list pegawai: %w", err)
-	}
-	return items, nil
-}
-
 // PegawaiQuery describes a server-side DataTables request.
 type PegawaiQuery struct {
 	Search   string

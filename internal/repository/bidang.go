@@ -31,15 +31,6 @@ func NewBidang(db *bun.DB) *BidangRepository {
 	return &BidangRepository{db: db}
 }
 
-// List returns every bidang ordered by name.
-func (r *BidangRepository) List(ctx context.Context) ([]model.Bidang, error) {
-	items := make([]model.Bidang, 0)
-	if err := r.db.NewSelect().Model(&items).OrderExpr("b.nama ASC").Scan(ctx); err != nil {
-		return nil, fmt.Errorf("list bidang: %w", err)
-	}
-	return items, nil
-}
-
 // BidangQuery describes a server-side DataTables request.
 type BidangQuery struct {
 	Search   string

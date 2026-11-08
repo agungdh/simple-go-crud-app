@@ -60,11 +60,11 @@ File `*.db`, `*.db-shm`, dan `*.db-wal` sudah di-ignore oleh git.
 CRUD pegawai memakai **multi-page**: setiap aksi punya halaman sendiri.
 
 - `/pegawai` — tabel daftar pegawai (DataTables server-side: cari, urut, dan
-  paginasi diproses di server lewat `/api/pegawai/datatable`).
+  paginasi diproses di server lewat `/pegawai/datatable`).
 - `/pegawai/create` — halaman form tambah.
 - `/pegawai/{id}/edit` — halaman form edit dengan data terisi.
 
-Tambah/edit/hapus tetap **disubmit lewat `fetch()` ke API JSON**, bukan
+Tambah/edit/hapus tetap **disubmit lewat `fetch()` ke endpoint JSON**, bukan
 full-page POST. Setelah berhasil, browser diarahkan kembali ke `/pegawai` dengan
 query `?status=created|updated|deleted` untuk menampilkan notifikasi. Jika
 validasi gagal, pesan error dari API ditampilkan di halaman form tanpa reload.
@@ -72,30 +72,34 @@ validasi gagal, pesan error dari API ditampilkan di halaman form tanpa reload.
 Field pegawai: `nip` (unik, wajib), `nama` (wajib), `jabatan`, `email`,
 `telepon`, `alamat`, serta `created_at`/`updated_at` yang diisi otomatis.
 
-### API
+### Route (gaya resource Laravel)
 
-| Method | Path                | Keterangan                       |
-| ------ | ------------------- | -------------------------------- |
-| GET    | `/api/pegawai`      | Daftar pegawai                   |
-| GET    | `/api/pegawai/datatable` | Data server-side untuk DataTables |
-| POST   | `/api/pegawai`      | Tambah pegawai                   |
-| GET    | `/api/pegawai/{id}` | Detail pegawai                   |
-| PUT    | `/api/pegawai/{id}` | Ubah pegawai                     |
-| DELETE | `/api/pegawai/{id}` | Hapus pegawai                    |
+| Method | Path                    | Aksi      | Keterangan                        |
+| ------ | ----------------------- | --------- | --------------------------------- |
+| GET    | `/pegawai`              | `Index`   | Halaman tabel pegawai             |
+| GET    | `/pegawai/datatable`    | `Datatable` | Data server-side untuk DataTables |
+| GET    | `/pegawai/create`       | `Create`  | Halaman form tambah               |
+| POST   | `/pegawai`              | `Store`   | Tambah pegawai (JSON)             |
+| GET    | `/pegawai/{id}/edit`    | `Edit`    | Halaman form edit                 |
+| PUT    | `/pegawai/{id}`         | `Update`  | Ubah pegawai (JSON)               |
+| DELETE | `/pegawai/{id}`         | `Destroy` | Hapus pegawai (JSON)              |
 
-Respons sukses memakai bentuk `{"data": ...}`; error memakai
-`{"error": "pesan"}`. Status yang dipakai: `200`, `201`, `204`, `400` (JSON/ID
-tidak valid), `404` (tidak ditemukan), `409` (NIP duplikat), `422` (validasi),
-dan `500`.
+Modul bidang mengikuti pola yang sama; tambahan `GET /bidang/search?q=` untuk
+autocomplete Select2.
+
+Respons sukses memakai bentuk `{"data": ...}` (datatable/detail/mutasi); destroy
+mengembalikan `204`. Error memakai `{"error": "pesan"}`. Status yang dipakai:
+`200`, `201`, `204`, `400` (JSON/ID tidak valid), `404` (tidak ditemukan), `409`
+(NIP/kode duplikat, bidang masih dipakai), `422` (validasi), dan `500`.
 
 Contoh:
 
 ```bash
-curl -X POST http://localhost:8080/api/pegawai \
+curl -X POST http://localhost:8080/pegawai \
   -H 'Content-Type: application/json' \
-  -d '{"nip":"198001012005011001","nama":"Budi Santoso","jabatan":"Staf"}'
+  -d '{"nip":"198001012005011001","nama":"Budi Santoso","jabatan":"Staf","bidang_id":1}'
 
-curl http://localhost:8080/api/pegawai
+curl 'http://localhost:8080/pegawai/datatable?start=0&length=10'
 ```
 
 ## Build binary mandiri
@@ -163,9 +167,9 @@ private secara default; ubah visibility lewat Settings → Packages jika perlu.
 main.go                              entrypoint, flag, wiring DB + router
 internal/pages/pages.go              registry halaman statis + definisi halaman pegawai
 internal/render/render.go            loader/cache template dari embed.FS + template funcs
-internal/router/router.go            routing chi, aset embedded, halaman + API pegawai, 404
-internal/handler/pegawai.go          handler halaman + JSON API CRUD pegawai
-internal/repository/pegawai.go       akses data Bun (list, get, create, update, delete)
+internal/router/router.go            routing chi, aset embedded, route resource pegawai & bidang, 404
+internal/handler/pegawai.go          handler resource pegawai (halaman + JSON API)
+internal/repository/pegawai.go       akses data Bun (query, get, create, update, delete)
 internal/model/pegawai.go            entity pegawai (tag Bun + JSON)
 internal/database/database.go        koneksi SQLite + runner goose (embed)
 internal/database/migrations/        file migration goose (*.sql)

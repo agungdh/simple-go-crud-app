@@ -60,9 +60,9 @@ func (p *bidangPayload) validate() string {
 	return ""
 }
 
-// Page renders the bidang list page. Rows are loaded by DataTables from
-// /api/bidang/datatable, so no data is fetched here.
-func (h *Bidang) Page(w http.ResponseWriter, r *http.Request) {
+// Index renders the bidang list page. Rows are loaded by DataTables from
+// /bidang/datatable, so no data is fetched here.
+func (h *Bidang) Index(w http.ResponseWriter, r *http.Request) {
 	h.render(w, h.page, bidangPageData{
 		Page:   h.page,
 		Status: r.URL.Query().Get("status"),
@@ -138,18 +138,18 @@ func (h *Bidang) Search(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"data": items})
 }
 
-// CreateForm renders the add-bidang page.
-func (h *Bidang) CreateForm(w http.ResponseWriter, r *http.Request) {
+// Create renders the add-bidang page.
+func (h *Bidang) Create(w http.ResponseWriter, r *http.Request) {
 	page := pages.BidangCreate
 	h.render(w, page, bidangPageData{
 		Page:       page,
-		FormAction: "/api/bidang",
+		FormAction: pages.Bidang.Route,
 		Method:     http.MethodPost,
 	})
 }
 
-// EditForm renders the edit-bidang page with the current values filled in.
-func (h *Bidang) EditForm(w http.ResponseWriter, r *http.Request) {
+// Edit renders the edit-bidang page with the current values filled in.
+func (h *Bidang) Edit(w http.ResponseWriter, r *http.Request) {
 	page := pages.BidangEdit
 
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
@@ -172,7 +172,7 @@ func (h *Bidang) EditForm(w http.ResponseWriter, r *http.Request) {
 	h.render(w, page, bidangPageData{
 		Page:       page,
 		Item:       item,
-		FormAction: "/api/bidang/" + strconv.FormatInt(id, 10),
+		FormAction: pages.Bidang.Route + "/" + strconv.FormatInt(id, 10),
 		Method:     http.MethodPut,
 	})
 }
@@ -185,34 +185,8 @@ func (h *Bidang) render(w http.ResponseWriter, page pages.Page, data bidangPageD
 	}
 }
 
-// List returns every bidang as JSON.
-func (h *Bidang) List(w http.ResponseWriter, r *http.Request) {
-	items, err := h.repo.List(r.Context())
-	if err != nil {
-		log.Printf("bidang list: %v", err)
-		writeError(w, http.StatusInternalServerError, "Gagal memuat data bidang")
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"data": items})
-}
-
-// Get returns a single bidang as JSON.
-func (h *Bidang) Get(w http.ResponseWriter, r *http.Request) {
-	id, ok := parseBidangID(w, r)
-	if !ok {
-		return
-	}
-
-	item, err := h.repo.Get(r.Context(), id)
-	if err != nil {
-		writeBidangRepoError(w, err, "Gagal memuat data bidang")
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"data": item})
-}
-
-// Create stores a new bidang and returns it as JSON.
-func (h *Bidang) Create(w http.ResponseWriter, r *http.Request) {
+// Store creates a new bidang and returns it as JSON.
+func (h *Bidang) Store(w http.ResponseWriter, r *http.Request) {
 	payload, ok := decodeBidangPayload(w, r)
 	if !ok {
 		return
@@ -256,8 +230,8 @@ func (h *Bidang) Update(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"data": item})
 }
 
-// Delete removes a bidang.
-func (h *Bidang) Delete(w http.ResponseWriter, r *http.Request) {
+// Destroy removes a bidang.
+func (h *Bidang) Destroy(w http.ResponseWriter, r *http.Request) {
 	id, ok := parseBidangID(w, r)
 	if !ok {
 		return

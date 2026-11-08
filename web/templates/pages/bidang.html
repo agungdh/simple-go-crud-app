@@ -100,7 +100,7 @@
     }
 
     try {
-      var response = await fetch('/api/bidang/' + id, {
+      var response = await fetch('/bidang/' + id, {
         method: 'DELETE',
         headers: { 'Accept': 'application/json' }
       });
@@ -132,7 +132,7 @@
     pageLength: 10,
     order: [[0, 'asc']],
     ajax: {
-      url: '/api/bidang/datatable',
+      url: '/bidang/datatable',
       type: 'GET'
     },
     columns: [

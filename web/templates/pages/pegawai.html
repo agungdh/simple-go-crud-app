@@ -105,7 +105,7 @@
     }
 
     try {
-      var response = await fetch('/api/pegawai/' + id, {
+      var response = await fetch('/pegawai/' + id, {
         method: 'DELETE',
         headers: { 'Accept': 'application/json' }
       });
@@ -137,7 +137,7 @@
     pageLength: 10,
     order: [[0, 'asc']],
     ajax: {
-      url: '/api/pegawai/datatable',
+      url: '/pegawai/datatable',
       type: 'GET'
     },
     columns: [
