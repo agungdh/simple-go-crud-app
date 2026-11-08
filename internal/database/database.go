@@ -7,6 +7,7 @@ import (
 	"embed"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/pressly/goose/v3"
 	"github.com/uptrace/bun"
@@ -19,19 +20,27 @@ import (
 //go:embed migrations/*.sql
 var migrations embed.FS
 
+// Connection pool sizing for a small single-vCPU instance (512 MiB RAM).
+//
+// SQLite serializes writers, but WAL mode lets readers run while a write
+// transaction is open, so a few connections are useful. The cap stays low
+// because each connection keeps its own page cache and 1 vCPU cannot run many
+// parallel queries anyway; busy_timeout absorbs the occasional writer race.
+const (
+	maxOpenConns    = 4
+	maxIdleConns    = 4
+	connMaxLifetime = 30 * time.Minute
+	connMaxIdleTime = 5 * time.Minute
+)
+
 // Open connects to the SQLite file at path, creating it when needed.
 //
-// The connection pool is limited to a single connection because SQLite only
-// allows one writer at a time; serializing access avoids "database is locked"
-// errors under concurrent HTTP requests.
+// The pool is deliberately small: WAL mode allows concurrent readers, while
+// writes remain serialized by SQLite itself and back off via busy_timeout.
 func Open(path string) (*bun.DB, error) {
 	dsn := path
 	if !strings.HasPrefix(path, "file:") {
-		if path == ":memory:" {
-			dsn = "file::memory:"
-		} else {
-			dsn = "file:" + path
-		}
+		dsn = "file:" + path
 	}
 	sep := "?"
 	if strings.Contains(dsn, "?") {
@@ -43,7 +52,10 @@ func Open(path string) (*bun.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
-	sqldb.SetMaxOpenConns(1)
+	sqldb.SetMaxOpenConns(maxOpenConns)
+	sqldb.SetMaxIdleConns(maxIdleConns)
+	sqldb.SetConnMaxLifetime(connMaxLifetime)
+	sqldb.SetConnMaxIdleTime(connMaxIdleTime)
 
 	db := bun.NewDB(sqldb, sqlitedialect.New())
 	if err := db.Ping(); err != nil {

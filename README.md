@@ -199,6 +199,9 @@ Route yang tidak dikenal mengembalikan **HTTP 404** dengan halaman 404 AdminLTE.
   memerlukan build ulang karena sudah di-embed.
 - `html/template` menghapus komentar HTML/JS saat render. Ini tidak mengubah
   tampilan maupun perilaku halaman.
-- Koneksi SQLite dibatasi satu koneksi (`SetMaxOpenConns(1)`) untuk menghindari
-  error `database is locked` saat ada banyak penulisan bersamaan.
+- Connection pool SQLite disetel untuk instance kecil (512 MB RAM / 1 vCPU):
+  maksimal 4 koneksi open/idle dengan `busy_timeout` 5 detik. Mode WAL
+  memungkinkan pembaca paralel sementara penulis tetap diserialisasi SQLite,
+  sehingga error `database is locked` tidak muncul meski ada penulisan
+  bersamaan.
 - Lihat `AGENTS.md` untuk panduan kontribusi dan konvensi kode.

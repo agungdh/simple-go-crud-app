@@ -170,8 +170,11 @@ Selalu jalankan `gofmt`, `go vet ./...`, dan `go test ./...` sebelum selesai.
 - Akses DB hanya lewat repository; handler tidak boleh menulis query Bun.
 - Timestamp disimpan UTC (`time.Now().UTC()`), field `created_at`/`updated_at`
   diisi otomatis.
-- SQLite hanya mendukung satu penulis; jangan menghapus
-  `sqldb.SetMaxOpenConns(1)` tanpa alasan kuat.
+- SQLite hanya mendukung satu penulis. Connection pool dibatasi kecil
+  (`maxOpenConns`/`maxIdleConns` = 4, lihat `internal/database/database.go`)
+  karena target deploy RAM 512 MB / 1 vCPU; WAL memungkinkan pembaca paralel,
+  penulis diserialisasi SQLite dan di-backoff lewat `busy_timeout`. Jangan
+  menaikkan pool tanpa mengukur memori dan kontensi tulis.
 - NIP unik: tangani duplikat sebagai `ErrDuplicateNIP` (HTTP 409), bukan 500.
 - Kode bidang unik: tangani duplikat sebagai `ErrDuplicateKode` (HTTP 409).
 - Hapus bidang yang masih dipakai pegawai akan gagal FK; petakan ke `ErrInUse`
