@@ -7,8 +7,8 @@ secara lokal oleh server Go — tidak butuh koneksi ke CDN untuk aset utama.
 Template dan aset di-embed ke dalam binary memakai `go:embed`, jadi hasil build
 berupa **satu file yang bisa langsung dibagikan** tanpa folder `web/`.
 
-Cakupan saat ini: **UI/demo statis** (37 halaman). Belum ada database, CRUD,
-autentikasi, atau logika bisnis.
+Cakupan saat ini: **UI/demo statis** (3 halaman: starter, 404, dan 500). Belum
+ada database, CRUD, autentikasi, atau logika bisnis.
 
 ## Menjalankan
 
@@ -26,7 +26,7 @@ make build-prod   # binary statis + stripped untuk distribusi
 make clean        # hapus folder bin/
 ```
 
-Buka <http://localhost:8080>. Root `/` langsung menampilkan Dashboard v1.
+Buka <http://localhost:8080>. Root `/` langsung menampilkan halaman Starter.
 
 Opsi yang tersedia:
 
@@ -95,48 +95,33 @@ private secara default; ubah visibility lewat Settings → Packages jika perlu.
 
 ```
 main.go                     entrypoint + flag
-internal/pages/pages.go     registry 37 halaman (route, layout, title, sidebar, dll.)
+internal/pages/pages.go     registry 3 halaman (route, layout, title, sidebar, dll.)
 internal/render/render.go   loader/cache template dari embed.FS + template funcs
 internal/router/router.go   routing chi, mount aset embedded, handler 404
 web/assets.go               //go:embed templates + static
-web/templates/layouts/      main.html, topnav.html, standalone.html
-web/templates/partials/     header (default/compact/starter), sidebar, control-sidebar, footer
-web/templates/pages/        konten tiap halaman
-web/static/                 dist/, plugins/, bower_components/ (salinan AdminLTE)
+web/templates/layouts/      main.html
+web/templates/partials/     header, sidebar, control-sidebar, footer
+web/templates/pages/        starter.html + examples/{404,500}.html
+web/static/                 dist/ dan bower_components/ (aset AdminLTE yang dipakai)
 ```
 
-Tiga keluarga layout:
-
-- `main` — sidebar + header + control sidebar (mayoritas halaman)
-- `topnav` — navigasi atas tanpa sidebar (`pages/layout/top-nav.html`)
-- `standalone` — login, register, lockscreen, invoice-print
+Semua halaman memakai layout `main` (sidebar + header + control sidebar).
 
 ## Daftar Halaman
 
-Dashboard & starter:
-
-- `/index.html`, `/index2.html`, `/starter.html`
-
-Pages:
-
-- `/pages/calendar.html`, `/pages/widgets.html`
-- `/pages/UI/{general,icons,buttons,sliders,timeline,modals}.html`
-- `/pages/forms/{general,advanced,editors}.html`
-- `/pages/tables/{simple,data}.html`
-- `/pages/charts/{chartjs,morris,flot,inline}.html`
-- `/pages/mailbox/{mailbox,compose,read-mail}.html`
-- `/pages/examples/{invoice,invoice-print,profile,login,register,lockscreen,404,500,blank,pace}.html`
-- `/pages/layout/{top-nav,boxed,fixed,collapsed-sidebar}.html`
+- `/starter.html` (root `/` juga menampilkan halaman ini)
+- `/pages/examples/404.html`
+- `/pages/examples/500.html`
 
 Route yang tidak dikenal mengembalikan **HTTP 404** dengan halaman 404 AdminLTE.
 
 ## Catatan
 
-- URL aset dan link dinormalisasi ke path absolut (`/dist/...`, `/plugins/...`,
+- URL aset dan link dinormalisasi ke path absolut (`/dist/...`,
   `/bower_components/...`) sehingga bisa diakses dari route mana pun.
 - Template di-parse sekali lalu di-cache; perubahan template/aset memerlukan
   build ulang karena sudah di-embed.
 - `html/template` menghapus komentar HTML/JS saat render. Ini tidak mengubah
   tampilan maupun perilaku halaman.
-- Ukuran repo bertambah sekitar 66 MB karena aset AdminLTE disalin ke
-  `web/static/`; binary hasil build juga membesar sesuai ukuran aset.
+- Aset di `web/static/` dibatasi ke file yang benar-benar dirujuk oleh tiga
+  halaman tersebut agar binary hasil build tetap kecil.

@@ -31,7 +31,7 @@
 <body class="{{.BodyClass}}">
 <div class="wrapper">
 
-{{if eq .Sidebar "starter"}}{{template "header-starter" .}}{{template "sidebar-starter" .}}{{else}}{{if eq .Header "compact"}}{{template "header-compact" .}}{{else}}{{template "header" .}}{{end}}{{template "sidebar" .}}{{end}}
+{{if eq .Sidebar "starter"}}{{template "header-starter" .}}{{template "sidebar-starter" .}}{{else}}{{template "header" .}}{{template "sidebar" .}}{{end}}
 {{block "content" .}}{{end}}
 {{template "footer" .}}
 {{template "control-sidebar" .}}

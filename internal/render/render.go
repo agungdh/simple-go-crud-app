@@ -47,14 +47,11 @@ func (r *Renderer) funcs() template.FuncMap {
 func (r *Renderer) partials() []string {
 	names := []string{
 		"header.html",
-		"header-compact.html",
 		"header-starter.html",
-		"header-topnav.html",
 		"sidebar.html",
 		"sidebar-starter.html",
 		"control-sidebar.html",
 		"footer.html",
-		"footer-topnav.html",
 	}
 	out := make([]string, 0, len(names))
 	for _, name := range names {

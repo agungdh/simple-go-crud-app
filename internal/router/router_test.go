@@ -54,15 +54,15 @@ func TestAllPagesRender(t *testing.T) {
 	}
 }
 
-func TestRootRendersDashboard(t *testing.T) {
+func TestRootRendersStarter(t *testing.T) {
 	handler := newHandler(t)
 
 	rec := get(handler, "/")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
-	if !strings.Contains(rec.Body.String(), "<title>AdminLTE 2 | Dashboard</title>") {
-		t.Fatal("root did not render the dashboard page")
+	if !strings.Contains(rec.Body.String(), "<title>AdminLTE 2 | Starter</title>") {
+		t.Fatal("root did not render the starter page")
 	}
 }
 

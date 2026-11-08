@@ -22,7 +22,7 @@ func New(registry []pages.Page, renderer *render.Renderer, webFS fs.FS) (http.Ha
 
 	mux := chi.NewRouter()
 
-	for _, dir := range []string{"dist", "plugins", "bower_components"} {
+	for _, dir := range []string{"dist", "bower_components"} {
 		sub, err := fs.Sub(staticFS, dir)
 		if err != nil {
 			return nil, fmt.Errorf("static %s: %w", dir, err)
@@ -49,9 +49,9 @@ func New(registry []pages.Page, renderer *render.Renderer, webFS fs.FS) (http.Ha
 		})
 	}
 
-	if index, ok := byRoute["/index.html"]; ok {
+	if starter, ok := byRoute["/starter.html"]; ok {
 		mux.Get("/", func(w http.ResponseWriter, r *http.Request) {
-			renderPage(w, index)
+			renderPage(w, starter)
 		})
 	}
 
