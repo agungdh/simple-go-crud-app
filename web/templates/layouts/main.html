@@ -34,8 +34,6 @@
 {{if eq .Sidebar "starter"}}{{template "header-starter" .}}{{template "sidebar-starter" .}}{{else}}{{template "header" .}}{{template "sidebar" .}}{{end}}
 {{block "content" .}}{{end}}
 {{template "footer" .}}
-{{template "control-sidebar" .}}
-  <div class="control-sidebar-bg"></div>
 </div>
 <!-- ./wrapper -->
 

@@ -50,7 +50,6 @@ func (r *Renderer) partials() []string {
 		"header-starter.html",
 		"sidebar.html",
 		"sidebar-starter.html",
-		"control-sidebar.html",
 		"footer.html",
 	}
 	out := make([]string, 0, len(names))
