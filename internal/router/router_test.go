@@ -184,6 +184,44 @@ func TestPegawaiPageRenders(t *testing.T) {
 	}
 }
 
+func TestPegawaiFormPages(t *testing.T) {
+	handler := newHandler(t)
+
+	create := get(handler, pages.PegawaiCreate.Route)
+	if create.Code != http.StatusOK {
+		t.Fatalf("create form status = %d, want 200", create.Code)
+	}
+	createBody := create.Body.String()
+	for _, want := range []string{`id="form-pegawai"`, `data-action="/api/pegawai"`, `data-method="POST"`} {
+		if !strings.Contains(createBody, want) {
+			t.Errorf("create form does not contain %q", want)
+		}
+	}
+
+	created := send(handler, http.MethodPost, "/api/pegawai", map[string]string{
+		"nip":  "198001012005011001",
+		"nama": "Budi Santoso",
+	})
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create status = %d, body = %s", created.Code, created.Body.String())
+	}
+
+	edit := get(handler, "/pegawai/1/edit")
+	if edit.Code != http.StatusOK {
+		t.Fatalf("edit form status = %d, want 200", edit.Code)
+	}
+	editBody := edit.Body.String()
+	for _, want := range []string{`data-action="/api/pegawai/1"`, `data-method="PUT"`, `value="Budi Santoso"`} {
+		if !strings.Contains(editBody, want) {
+			t.Errorf("edit form does not contain %q", want)
+		}
+	}
+
+	if rec := get(handler, "/pegawai/999/edit"); rec.Code != http.StatusNotFound {
+		t.Fatalf("missing edit form status = %d, want 404", rec.Code)
+	}
+}
+
 func TestPegawaiCRUDFlow(t *testing.T) {
 	handler := newHandler(t)
 

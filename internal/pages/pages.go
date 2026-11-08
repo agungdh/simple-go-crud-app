@@ -26,6 +26,30 @@ var Pegawai = Page{
 	FooterClass: "main-footer",
 }
 
+// PegawaiEdit is the edit form, mounted by the pegawai handler.
+var PegawaiEdit = Page{
+	Route:       "/pegawai/{id}/edit",
+	Template:    "pegawai_form.html",
+	Layout:      "main",
+	Title:       "AdminLTE 2 | Edit Pegawai",
+	BodyClass:   "hold-transition skin-blue sidebar-mini",
+	Active:      "pegawai",
+	Sidebar:     "default",
+	FooterClass: "main-footer",
+}
+
+// PegawaiCreate is the add form, mounted by the pegawai handler.
+var PegawaiCreate = Page{
+	Route:       "/pegawai/create",
+	Template:    "pegawai_form.html",
+	Layout:      "main",
+	Title:       "AdminLTE 2 | Tambah Pegawai",
+	BodyClass:   "hold-transition skin-blue sidebar-mini",
+	Active:      "pegawai",
+	Sidebar:     "default",
+	FooterClass: "main-footer",
+}
+
 // Pages is the set of static AdminLTE pages kept by this demo.
 var Pages = []Page{
 	{

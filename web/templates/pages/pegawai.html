@@ -16,12 +16,19 @@
         <div class="box-header with-border">
           <h3 class="box-title">Daftar Pegawai</h3>
           <div class="box-tools pull-right">
-            <button type="button" class="btn btn-primary btn-sm" id="btn-tambah" data-toggle="modal" data-target="#modal-pegawai">
+            <a href="/pegawai/create" class="btn btn-primary btn-sm">
               <i class="fa fa-plus"></i> Tambah Pegawai
-            </button>
+            </a>
           </div>
         </div>
         <div class="box-body">
+          {{if eq .Status "created"}}
+          <div class="alert alert-success"><i class="fa fa-check"></i> Data pegawai berhasil ditambahkan.</div>
+          {{else if eq .Status "updated"}}
+          <div class="alert alert-success"><i class="fa fa-check"></i> Data pegawai berhasil diperbarui.</div>
+          {{else if eq .Status "deleted"}}
+          <div class="alert alert-success"><i class="fa fa-check"></i> Data pegawai berhasil dihapus.</div>
+          {{end}}
           <div class="alert" id="alert" style="display: none;"></div>
 
           <div class="table-responsive">
@@ -49,9 +56,9 @@
                   <td>{{.Telepon}}</td>
                   <td>{{.Alamat}}</td>
                   <td>
-                    <button type="button" class="btn btn-warning btn-xs btn-edit" data-id="{{.ID}}">
+                    <a href="/pegawai/{{.ID}}/edit" class="btn btn-warning btn-xs">
                       <i class="fa fa-pencil"></i> Edit
-                    </button>
+                    </a>
                     <button type="button" class="btn btn-danger btn-xs btn-hapus" data-id="{{.ID}}" data-nama="{{.Nama}}">
                       <i class="fa fa-trash"></i> Hapus
                     </button>
@@ -69,51 +76,6 @@
       </div>
     </section>
   </div>
-
-  <div class="modal fade" id="modal-pegawai" tabindex="-1" role="dialog" aria-labelledby="modal-pegawai-title">
-    <div class="modal-dialog" role="document">
-      <div class="modal-content">
-        <form id="form-pegawai">
-          <div class="modal-header">
-            <button type="button" class="close" data-dismiss="modal" aria-label="Tutup"><span aria-hidden="true">&times;</span></button>
-            <h4 class="modal-title" id="modal-pegawai-title">Tambah Pegawai</h4>
-          </div>
-          <div class="modal-body">
-            <input type="hidden" id="pegawai-id" name="id">
-
-            <div class="form-group">
-              <label for="nip">NIP <span class="text-danger">*</span></label>
-              <input type="text" class="form-control" id="nip" name="nip" maxlength="50" required>
-            </div>
-            <div class="form-group">
-              <label for="nama">Nama <span class="text-danger">*</span></label>
-              <input type="text" class="form-control" id="nama" name="nama" maxlength="150" required>
-            </div>
-            <div class="form-group">
-              <label for="jabatan">Jabatan</label>
-              <input type="text" class="form-control" id="jabatan" name="jabatan" maxlength="100">
-            </div>
-            <div class="form-group">
-              <label for="email">Email</label>
-              <input type="email" class="form-control" id="email" name="email" maxlength="150">
-            </div>
-            <div class="form-group">
-              <label for="telepon">Telepon</label>
-              <input type="text" class="form-control" id="telepon" name="telepon" maxlength="30">
-            </div>
-            <div class="form-group">
-              <label for="alamat">Alamat</label>
-              <textarea class="form-control" id="alamat" name="alamat" rows="3" maxlength="500"></textarea>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-default" data-dismiss="modal">Batal</button>
-            <button type="submit" class="btn btn-primary" id="btn-simpan">Simpan</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
 {{end}}
 
 {{define "page-js"}}
@@ -124,198 +86,47 @@
 (function () {
   'use strict';
 
-  var apiBase = '/api/pegawai';
-  var $form = $('#form-pegawai');
-  var $modal = $('#modal-pegawai');
   var $rows = $('#pegawai-rows');
   var $alert = $('#alert');
-  var $submit = $('#btn-simpan');
-  var $title = $('#modal-pegawai-title');
-  var alertTimer = null;
 
   function showAlert(type, message) {
-    window.clearTimeout(alertTimer);
     $alert
-      .removeClass('alert-success alert-danger alert-warning')
+      .removeClass('alert-success alert-danger')
       .addClass('alert-' + type)
       .text(message)
       .show();
-    alertTimer = window.setTimeout(function () {
-      $alert.hide();
-    }, 5000);
-  }
-
-  async function api(url, options) {
-    var opts = options || {};
-    opts.headers = Object.assign({ 'Accept': 'application/json' }, opts.headers || {});
-
-    var response = await fetch(url, opts);
-    var body = null;
-    if (response.status !== 204) {
-      var text = await response.text();
-      if (text) {
-        try {
-          body = JSON.parse(text);
-        } catch (err) {
-          body = null;
-        }
-      }
-    }
-
-    if (!response.ok) {
-      throw new Error((body && body.error) || 'Terjadi kesalahan (' + response.status + ')');
-    }
-    return body;
-  }
-
-  function cell(text) {
-    var td = document.createElement('td');
-    td.textContent = text == null ? '' : text;
-    return td;
-  }
-
-  function actionButton(className, label, icon, id, nama) {
-    var button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'btn ' + className + ' btn-xs';
-    button.dataset.id = id;
-    if (nama != null) {
-      button.dataset.nama = nama;
-    }
-    button.innerHTML = '<i class="fa ' + icon + '"></i> ' + label;
-    return button;
-  }
-
-  function renderRows(items) {
-    $rows.empty();
-
-    if (!items.length) {
-      var empty = document.createElement('tr');
-      empty.id = 'empty-row';
-      var emptyCell = document.createElement('td');
-      emptyCell.colSpan = 8;
-      emptyCell.className = 'text-center text-muted';
-      emptyCell.textContent = 'Belum ada data pegawai.';
-      empty.appendChild(emptyCell);
-      $rows.append(empty);
-      return;
-    }
-
-    items.forEach(function (item) {
-      var tr = document.createElement('tr');
-      tr.dataset.id = item.id;
-      tr.appendChild(cell(item.id));
-      tr.appendChild(cell(item.nip));
-      tr.appendChild(cell(item.nama));
-      tr.appendChild(cell(item.jabatan));
-      tr.appendChild(cell(item.email));
-      tr.appendChild(cell(item.telepon));
-      tr.appendChild(cell(item.alamat));
-
-      var actions = document.createElement('td');
-      actions.appendChild(actionButton('btn-warning', 'Edit', 'fa-pencil', item.id));
-      actions.appendChild(document.createTextNode(' '));
-      actions.appendChild(actionButton('btn-danger', 'Hapus', 'fa-trash', item.id, item.nama));
-      tr.appendChild(actions);
-
-      $rows.append(tr);
-    });
-  }
-
-  async function load() {
-    try {
-      var result = await api(apiBase);
-      renderRows((result && result.data) || []);
-    } catch (err) {
-      showAlert('danger', err.message);
-    }
-  }
-
-  function formPayload() {
-    var payload = {};
-    $form.serializeArray().forEach(function (field) {
-      if (field.name !== 'id') {
-        payload[field.name] = field.value;
-      }
-    });
-    return payload;
-  }
-
-  function resetForm() {
-    $form[0].reset();
-    $('#pegawai-id').val('');
-    $title.text('Tambah Pegawai');
-  }
-
-  function openEdit(id) {
-    api(apiBase + '/' + id)
-      .then(function (result) {
-        var item = result.data;
-        $('#pegawai-id').val(item.id);
-        $('#nip').val(item.nip);
-        $('#nama').val(item.nama);
-        $('#jabatan').val(item.jabatan);
-        $('#email').val(item.email);
-        $('#telepon').val(item.telepon);
-        $('#alamat').val(item.alamat);
-        $title.text('Edit Pegawai');
-        $modal.modal('show');
-      })
-      .catch(function (err) {
-        showAlert('danger', err.message);
-      });
   }
 
   async function remove(id, nama) {
     if (!window.confirm('Hapus pegawai "' + nama + '"?')) {
       return;
     }
+
     try {
-      await api(apiBase + '/' + id, { method: 'DELETE' });
-      showAlert('success', 'Data pegawai berhasil dihapus.');
-      await load();
+      var response = await fetch('/api/pegawai/' + id, {
+        method: 'DELETE',
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (!response.ok) {
+        var body = null;
+        try {
+          body = await response.json();
+        } catch (err) {
+          body = null;
+        }
+        throw new Error((body && body.error) || 'Gagal menghapus data pegawai');
+      }
+
+      window.location.href = '/pegawai?status=deleted';
     } catch (err) {
       showAlert('danger', err.message);
     }
   }
 
-  $('#btn-tambah').on('click', resetForm);
-
-  $modal.on('hidden.bs.modal', resetForm);
-
-  $rows.on('click', '.btn-edit', function () {
-    openEdit($(this).data('id'));
-  });
-
   $rows.on('click', '.btn-hapus', function () {
     remove($(this).data('id'), $(this).data('nama'));
   });
-
-  $form.on('submit', async function (event) {
-    event.preventDefault();
-
-    var id = $('#pegawai-id').val();
-    var url = id ? apiBase + '/' + id : apiBase;
-    var method = id ? 'PUT' : 'POST';
-
-    $submit.prop('disabled', true).text('Menyimpan...');
-    try {
-      await api(url, {
-        method: method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formPayload())
-      });
-      $modal.modal('hide');
-      showAlert('success', id ? 'Data pegawai berhasil diperbarui.' : 'Data pegawai berhasil ditambahkan.');
-      await load();
-    } catch (err) {
-      showAlert('danger', err.message);
-    } finally {
-      $submit.prop('disabled', false).text('Simpan');
-    }
-  });
-
-  load();
 })();
 </script>
 {{end}}

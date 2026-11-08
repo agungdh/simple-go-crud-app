@@ -4,10 +4,10 @@ Panduan untuk agent/kontributor yang bekerja di repo ini.
 
 ## Ringkasan proyek
 
-Aplikasi Go + AdminLTE 2 untuk CRUD **pegawai**. Halaman dirender server-side
-dengan `html/template`; semua interaksi form memakai `fetch()` ke API JSON
-(tanpa full-page POST). Database SQLite diakses lewat ORM Bun, dan migration
-memakai goose.
+Aplikasi Go + AdminLTE 2 untuk CRUD **pegawai** dengan arsitektur **multi-page**
+(list, tambah, edit punya route/halaman masing-masing). Halaman dirender
+server-side dengan `html/template`; submit form tetap memakai `fetch()` ke API
+JSON. Database SQLite diakses lewat ORM Bun, dan migration memakai goose.
 
 ## Stack & dependensi
 
@@ -54,22 +54,30 @@ Selalu jalankan `gofmt`, `go vet ./...`, dan `go test ./...` sebelum selesai.
 
 ### Form submission
 
+- Arsitektur **multi-page**: daftar di `/pegawai`, form tambah di
+  `/pegawai/create`, form edit di `/pegawai/{id}/edit`. Jangan memakai modal
+  untuk CRUD.
 - **Semua submit form harus lewat `fetch()`** ke endpoint `/api/...` yang
   mengembalikan JSON. Jangan membuat handler POST yang merender HTML.
 - Set `Content-Type: application/json` dan kirim body JSON.
-- Setelah mutasi berhasil, render ulang tabel dari respons API (pola yang ada
-  di `web/templates/pages/pegawai.html`) dan tampilkan notifikasi.
-- Bangun baris tabel dengan `createElement` + `textContent` (bukan
-  `innerHTML` berisi data user) untuk mencegah XSS.
-- Tombol aksi memakai event delegation pada `<tbody>`.
+- Setelah mutasi berhasil, redirect ke `/pegawai?status=created|updated|deleted`;
+  halaman daftar menampilkan notifikasi dari query `status`.
+- Jika API mengembalikan error, tampilkan pesannya di halaman form tanpa reload.
+- Link edit memakai `<a href="/pegawai/{id}/edit">`, bukan handler JS.
+- Hapus data memakai `fetch()` DELETE lalu redirect ke daftar; tombol aksi
+  memakai event delegation pada `<tbody>`.
+- Saat membangun elemen dari data user, gunakan `textContent` (bukan
+  `innerHTML`) untuk mencegah XSS.
 
 ### Template & render
 
 - Halaman statis: tambahkan `pages.Page` ke `pages.Pages`; router otomatis
   mendaftarkannya.
-- Halaman dinamis: definisikan `pages.Page` terpisah (contoh `pages.Pegawai`),
-  mount handler-nya secara eksplisit di router, dan render dengan
-  `renderer.RenderData`.
+- Halaman dinamis: definisikan `pages.Page` terpisah (contoh `pages.Pegawai`,
+  `pages.PegawaiCreate`, `pages.PegawaiEdit`), mount handler-nya secara
+  eksplisit di router, dan render dengan `renderer.RenderData`.
+- Form tambah dan edit berbagi template `pegawai_form.html`; bedakan lewat
+  `Method` (`POST`/`PUT`) dan `FormAction` pada `pageData`.
 - Data untuk `RenderData` harus struct yang **embed `pages.Page`**, karena
   layout/partial membaca `.Title`, `.Active`, `.Sidebar`, dan `.BodyClass`.
 - Partial baru harus didaftarkan di `Renderer.partials()` agar ikut di-parse.

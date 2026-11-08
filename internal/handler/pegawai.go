@@ -34,7 +34,11 @@ func NewPegawai(repo *repository.PegawaiRepository, renderer *render.Renderer, p
 
 type pageData struct {
 	pages.Page
-	Pegawai []model.Pegawai
+	Pegawai    []model.Pegawai
+	Item       *model.Pegawai
+	FormAction string
+	Method     string
+	Status     string
 }
 
 type pegawaiPayload struct {
@@ -70,7 +74,7 @@ func (p *pegawaiPayload) validate() string {
 	return ""
 }
 
-// Page renders the server-side pegawai page.
+// Page renders the pegawai list page.
 func (h *Pegawai) Page(w http.ResponseWriter, r *http.Request) {
 	items, err := h.repo.List(r.Context())
 	if err != nil {
@@ -79,9 +83,57 @@ func (h *Pegawai) Page(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	data := pageData{
+		Page:    h.page,
+		Pegawai: items,
+		Status:  r.URL.Query().Get("status"),
+	}
+	h.render(w, h.page, data)
+}
+
+// CreateForm renders the add-pegawai page.
+func (h *Pegawai) CreateForm(w http.ResponseWriter, r *http.Request) {
+	page := pages.PegawaiCreate
+	h.render(w, page, pageData{
+		Page:       page,
+		FormAction: "/api/pegawai",
+		Method:     http.MethodPost,
+	})
+}
+
+// EditForm renders the edit-pegawai page with the current values filled in.
+func (h *Pegawai) EditForm(w http.ResponseWriter, r *http.Request) {
+	page := pages.PegawaiEdit
+
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "ID pegawai tidak valid", http.StatusBadRequest)
+		return
+	}
+
+	item, err := h.repo.Get(r.Context(), id)
+	if errors.Is(err, repository.ErrNotFound) {
+		http.Error(w, "Data pegawai tidak ditemukan", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		log.Printf("pegawai edit form: %v", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	h.render(w, page, pageData{
+		Page:       page,
+		Item:       item,
+		FormAction: "/api/pegawai/" + strconv.FormatInt(id, 10),
+		Method:     http.MethodPut,
+	})
+}
+
+func (h *Pegawai) render(w http.ResponseWriter, page pages.Page, data pageData) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := h.renderer.RenderData(w, h.page, pageData{Page: h.page, Pegawai: items}); err != nil {
-		log.Printf("render %s: %v", h.page.Route, err)
+	if err := h.renderer.RenderData(w, page, data); err != nil {
+		log.Printf("render %s: %v", page.Route, err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 	}
 }

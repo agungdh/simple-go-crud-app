@@ -61,6 +61,8 @@ func New(registry []pages.Page, renderer *render.Renderer, webFS fs.FS, pegawai 
 
 	if pegawai != nil {
 		mux.Get(pages.Pegawai.Route, pegawai.Page)
+		mux.Get(pages.PegawaiCreate.Route, pegawai.CreateForm)
+		mux.Get(pages.PegawaiEdit.Route, pegawai.EditForm)
 		mux.Get("/api/pegawai", pegawai.List)
 		mux.Post("/api/pegawai", pegawai.Create)
 		mux.Get("/api/pegawai/{id}", pegawai.Get)

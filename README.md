@@ -56,9 +56,16 @@ File `*.db`, `*.db-shm`, dan `*.db-wal` sudah di-ignore oleh git.
 
 ## CRUD Pegawai
 
-Halaman `/pegawai` menampilkan tabel pegawai dengan fitur tambah, edit, dan
-hapus. **Semua form disubmit lewat `fetch()` ke API JSON** (tanpa reload
-halaman), lalu tabel di-render ulang dari respons API.
+CRUD pegawai memakai **multi-page**: setiap aksi punya halaman sendiri.
+
+- `/pegawai` — tabel daftar pegawai (dirender server-side).
+- `/pegawai/create` — halaman form tambah.
+- `/pegawai/{id}/edit` — halaman form edit dengan data terisi.
+
+Tambah/edit/hapus tetap **disubmit lewat `fetch()` ke API JSON**, bukan
+full-page POST. Setelah berhasil, browser diarahkan kembali ke `/pegawai` dengan
+query `?status=created|updated|deleted` untuk menampilkan notifikasi. Jika
+validasi gagal, pesan error dari API ditampilkan di halaman form tanpa reload.
 
 Field pegawai: `nip` (unik, wajib), `nama` (wajib), `jabatan`, `email`,
 `telepon`, `alamat`, serta `created_at`/`updated_at` yang diisi otomatis.
@@ -162,14 +169,16 @@ internal/database/migrations/        file migration goose (*.sql)
 web/assets.go                        //go:embed templates + static
 web/templates/layouts/               main.html
 web/templates/partials/              header, sidebar, footer
-web/templates/pages/                 starter, pegawai, examples/{404,500}
+web/templates/pages/                 starter, pegawai (list), pegawai_form, examples/{404,500}
 web/static/                          dist/ dan bower_components/ (aset AdminLTE)
 ```
 
 ## Daftar Halaman
 
 - `/starter.html` (root `/` juga menampilkan halaman ini)
-- `/pegawai` — CRUD pegawai
+- `/pegawai` — daftar pegawai
+- `/pegawai/create` — form tambah pegawai
+- `/pegawai/{id}/edit` — form edit pegawai
 - `/pages/examples/404.html`
 - `/pages/examples/500.html`
 
