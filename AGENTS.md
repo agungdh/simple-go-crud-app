@@ -132,9 +132,12 @@ Selalu jalankan `gofmt`, `go vet ./...`, dan `go test ./...` sebelum selesai.
   `internal/database/migrations/` dengan format `00002_nama_perubahan.sql`,
   berisi `-- +goose Up` dan `-- +goose Down`.
 - Jangan mengubah migration yang sudah pernah dijalankan; buat file baru.
-- `pegawai.bidang_id` wajib (NOT NULL) dan FK ke `bidang(id)`. Karena SQLite
-  tidak bisa `ALTER TABLE ADD COLUMN ... NOT NULL REFERENCES`, migration
-  `00003` melakukan rebuild tabel `pegawai` dan **mengosongkan data lama**.
+- Baseline skema: `00001_create_bidang.sql` membuat tabel `bidang`, lalu
+  `00002_create_pegawai.sql` membuat `pegawai` dengan `bidang_id` NOT NULL dan
+  FK ke `bidang(id)`. Urutan ini wajib (bidang harus ada lebih dulu).
+  `pegawai.bidang_id` tidak bisa ditambahkan lewat `ALTER TABLE` karena SQLite
+  melarang `ADD COLUMN ... NOT NULL REFERENCES`; ubah lewat migration rebuild
+  baru bila perlu.
 - Akses DB hanya lewat repository; handler tidak boleh menulis query Bun.
 - Timestamp disimpan UTC (`time.Now().UTC()`), field `created_at`/`updated_at`
   diisi otomatis.
