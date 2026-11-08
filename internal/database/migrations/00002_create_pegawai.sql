@@ -12,7 +12,6 @@ CREATE TABLE pegawai (
     updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_pegawai_nama ON pegawai (nama);
 CREATE INDEX idx_pegawai_bidang_id ON pegawai (bidang_id);
 
 -- +goose Down

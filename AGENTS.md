@@ -102,6 +102,10 @@ Selalu jalankan `gofmt`, `go vet ./...`, dan `go test ./...` sebelum selesai.
   `p.nama`, `b.nama`), bukan nama kolom mentah. Arah hanya `asc`/`desc`.
   Jangan pernah memasukkan input user langsung ke `OrderExpr`.
 - Batasi `length` (maksimal 100) dan panjang kata kunci pencarian.
+- Pencarian harus **case-insensitive**: pakai `LOWER(kolom) LIKE ?` dan pola
+  yang juga di-`strings.ToLower`. Jangan andalkan perilaku default SQLite.
+- Jangan membuat index untuk kolom yang dipakai pencarian; index hanya untuk
+  FK dan unique (lihat bagian Database & migration).
 - Escape wildcard `%`, `_`, dan `\` saat membangun pola `LIKE`.
 - Jangan menambahkan baris placeholder "belum ada data" ke `<tbody>`; gunakan
   opsi `language.emptyTable`.
@@ -138,6 +142,9 @@ Selalu jalankan `gofmt`, `go vet ./...`, dan `go test ./...` sebelum selesai.
   `pegawai.bidang_id` tidak bisa ditambahkan lewat `ALTER TABLE` karena SQLite
   melarang `ADD COLUMN ... NOT NULL REFERENCES`; ubah lewat migration rebuild
   baru bila perlu.
+- Index hanya untuk FK (`idx_pegawai_bidang_id`) dan constraint unik
+  (`pegawai.nip`, `bidang.kode`). Jangan membuat index untuk kolom pencarian
+  (`nama`, dll); pencarian tetap memakai `LOWER(...) LIKE`.
 - Akses DB hanya lewat repository; handler tidak boleh menulis query Bun.
 - Timestamp disimpan UTC (`time.Now().UTC()`), field `created_at`/`updated_at`
   diisi otomatis.

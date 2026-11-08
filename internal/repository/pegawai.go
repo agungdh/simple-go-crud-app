@@ -90,17 +90,17 @@ func applySearch(q *bun.SelectQuery, search string) *bun.SelectQuery {
 		return q
 	}
 
-	pattern := "%" + escapeLike(search) + "%"
+	pattern := "%" + strings.ToLower(escapeLike(search)) + "%"
 	return q.WhereGroup(" AND ", func(q *bun.SelectQuery) *bun.SelectQuery {
 		return q.
-			Where("p.nip LIKE ? ESCAPE '\\'", pattern).
-			WhereOr("p.nama LIKE ? ESCAPE '\\'", pattern).
-			WhereOr("p.jabatan LIKE ? ESCAPE '\\'", pattern).
-			WhereOr("b.kode LIKE ? ESCAPE '\\'", pattern).
-			WhereOr("b.nama LIKE ? ESCAPE '\\'", pattern).
-			WhereOr("p.email LIKE ? ESCAPE '\\'", pattern).
-			WhereOr("p.telepon LIKE ? ESCAPE '\\'", pattern).
-			WhereOr("p.alamat LIKE ? ESCAPE '\\'", pattern)
+			Where("LOWER(p.nip) LIKE ? ESCAPE '\\'", pattern).
+			WhereOr("LOWER(p.nama) LIKE ? ESCAPE '\\'", pattern).
+			WhereOr("LOWER(p.jabatan) LIKE ? ESCAPE '\\'", pattern).
+			WhereOr("LOWER(b.kode) LIKE ? ESCAPE '\\'", pattern).
+			WhereOr("LOWER(b.nama) LIKE ? ESCAPE '\\'", pattern).
+			WhereOr("LOWER(p.email) LIKE ? ESCAPE '\\'", pattern).
+			WhereOr("LOWER(p.telepon) LIKE ? ESCAPE '\\'", pattern).
+			WhereOr("LOWER(p.alamat) LIKE ? ESCAPE '\\'", pattern)
 	})
 }
 

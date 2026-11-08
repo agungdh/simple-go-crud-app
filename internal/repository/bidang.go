@@ -96,11 +96,11 @@ func applyBidangSearch(q *bun.SelectQuery, search string) *bun.SelectQuery {
 		return q
 	}
 
-	pattern := "%" + escapeLike(search) + "%"
+	pattern := "%" + strings.ToLower(escapeLike(search)) + "%"
 	return q.WhereGroup(" AND ", func(q *bun.SelectQuery) *bun.SelectQuery {
 		return q.
-			Where("b.kode LIKE ? ESCAPE '\\'", pattern).
-			WhereOr("b.nama LIKE ? ESCAPE '\\'", pattern)
+			Where("LOWER(b.kode) LIKE ? ESCAPE '\\'", pattern).
+			WhereOr("LOWER(b.nama) LIKE ? ESCAPE '\\'", pattern)
 	})
 }
 

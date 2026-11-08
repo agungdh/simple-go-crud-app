@@ -463,6 +463,15 @@ func TestPegawaiDatatable(t *testing.T) {
 		t.Fatalf("unexpected search result: %+v", search)
 	}
 
+	lowerSearch := request(url.Values{
+		"start":         {"0"},
+		"length":        {"5"},
+		"search[value]": {"pegawai 0"},
+	})
+	if lowerSearch.RecordsFiltered != 9 {
+		t.Fatalf("case-insensitive search failed: %+v", lowerSearch)
+	}
+
 	none := request(url.Values{
 		"start":         {"0"},
 		"length":        {"5"},
@@ -755,8 +764,14 @@ func TestBidangSearch(t *testing.T) {
 	if got := search("kepeg"); len(got.Data) != 1 || got.Data[0].Kode != "BID-01" {
 		t.Fatalf("unexpected name search: %+v", got.Data)
 	}
+	if got := search("KEPEG"); len(got.Data) != 1 {
+		t.Fatalf("case-insensitive name search failed: %+v", got.Data)
+	}
 	if got := search("bid-01"); len(got.Data) != 1 {
 		t.Fatalf("unexpected kode search: %+v", got.Data)
+	}
+	if got := search("BID-01"); len(got.Data) != 1 {
+		t.Fatalf("case-insensitive kode search failed: %+v", got.Data)
 	}
 	if got := search("tidak-ada"); len(got.Data) != 0 {
 		t.Fatalf("expected empty result, got %+v", got.Data)
