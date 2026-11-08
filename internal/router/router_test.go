@@ -121,6 +121,9 @@ func TestEmbeddedAssetsAreServed(t *testing.T) {
 		"/dist/css/AdminLTE.min.css",
 		"/dist/css/skins/_all-skins.min.css",
 		"/bower_components/jquery/dist/jquery.min.js",
+		"/plugins/datatables/jquery.dataTables.min.js",
+		"/plugins/datatables/dataTables.bootstrap.min.js",
+		"/plugins/datatables/dataTables.bootstrap.min.css",
 	}
 	for _, asset := range required {
 		if rec := get(handler, asset); rec.Code != http.StatusOK {
@@ -177,7 +180,7 @@ func TestPegawaiPageRenders(t *testing.T) {
 	}
 
 	body := rec.Body.String()
-	for _, want := range []string{"Data Pegawai", "Tambah Pegawai", "/pegawai"} {
+	for _, want := range []string{"Data Pegawai", "Tambah Pegawai", "/pegawai", `id="tabel-pegawai"`, "/plugins/datatables/jquery.dataTables.min.js"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("body does not contain %q", want)
 		}

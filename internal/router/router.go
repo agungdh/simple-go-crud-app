@@ -26,7 +26,7 @@ func New(registry []pages.Page, renderer *render.Renderer, webFS fs.FS, pegawai 
 
 	mux := chi.NewRouter()
 
-	for _, dir := range []string{"dist", "bower_components"} {
+	for _, dir := range []string{"dist", "bower_components", "plugins"} {
 		sub, err := fs.Sub(staticFS, dir)
 		if err != nil {
 			return nil, fmt.Errorf("static %s: %w", dir, err)

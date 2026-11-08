@@ -17,6 +17,7 @@ berupa **satu file yang bisa langsung dibagikan** tanpa folder `web/`.
 | ORM         | `github.com/uptrace/bun` + `sqlitedialect`             |
 | Migration   | `github.com/pressly/goose/v3` (embedded, auto-migrate) |
 | Template    | `html/template` + `go:embed`                           |
+| Tabel       | DataTables 1.13 (integrasi Bootstrap 3, aset lokal)    |
 | Form submit | `fetch()` dari JavaScript, API JSON                    |
 
 Migration dijalankan otomatis saat aplikasi start. File migration tetap
@@ -170,13 +171,13 @@ web/assets.go                        //go:embed templates + static
 web/templates/layouts/               main.html
 web/templates/partials/              header, sidebar, footer
 web/templates/pages/                 starter, pegawai (list), pegawai_form, examples/{404,500}
-web/static/                          dist/ dan bower_components/ (aset AdminLTE)
+web/static/                          dist/, bower_components/, dan plugins/datatables/
 ```
 
 ## Daftar Halaman
 
 - `/starter.html` (root `/` juga menampilkan halaman ini)
-- `/pegawai` — daftar pegawai
+- `/pegawai` — daftar pegawai (tabel DataTables: cari, urut, dan paginasi)
 - `/pegawai/create` — form tambah pegawai
 - `/pegawai/{id}/edit` — form edit pegawai
 - `/pages/examples/404.html`

@@ -1,3 +1,7 @@
+{{define "page-css"}}
+<link rel="stylesheet" href="/plugins/datatables/dataTables.bootstrap.min.css">
+{{end}}
+
 {{define "content"}}
 <div class="content-wrapper">
     <section class="content-header">
@@ -32,10 +36,10 @@
           <div class="alert" id="alert" style="display: none;"></div>
 
           <div class="table-responsive">
-            <table class="table table-bordered table-striped table-hover">
+            <table id="tabel-pegawai" class="table table-bordered table-striped table-hover">
               <thead>
                 <tr>
-                  <th style="width: 50px;">No</th>
+                  <th style="width: 50px;">ID</th>
                   <th>NIP</th>
                   <th>Nama</th>
                   <th>Jabatan</th>
@@ -64,10 +68,6 @@
                     </button>
                   </td>
                 </tr>
-                {{else}}
-                <tr id="empty-row">
-                  <td colspan="8" class="text-center text-muted">Belum ada data pegawai.</td>
-                </tr>
                 {{end}}
               </tbody>
             </table>
@@ -82,6 +82,8 @@
 <script src="/bower_components/jquery/dist/jquery.min.js"></script>
 <script src="/bower_components/bootstrap/dist/js/bootstrap.min.js"></script>
 <script src="/dist/js/adminlte.min.js"></script>
+<script src="/plugins/datatables/jquery.dataTables.min.js"></script>
+<script src="/plugins/datatables/dataTables.bootstrap.min.js"></script>
 <script>
 (function () {
   'use strict';
@@ -126,6 +128,32 @@
 
   $rows.on('click', '.btn-hapus', function () {
     remove($(this).data('id'), $(this).data('nama'));
+  });
+
+  $('#tabel-pegawai').DataTable({
+    autoWidth: false,
+    pageLength: 10,
+    order: [[0, 'asc']],
+    columnDefs: [
+      { targets: 7, orderable: false, searchable: false }
+    ],
+    language: {
+      emptyTable: 'Belum ada data pegawai.',
+      info: 'Menampilkan _START_ sampai _END_ dari _TOTAL_ pegawai',
+      infoEmpty: 'Menampilkan 0 sampai 0 dari 0 pegawai',
+      infoFiltered: '(disaring dari _MAX_ total pegawai)',
+      lengthMenu: 'Tampilkan _MENU_ pegawai',
+      loadingRecords: 'Memuat...',
+      processing: 'Memproses...',
+      search: 'Cari:',
+      zeroRecords: 'Tidak ada pegawai yang cocok',
+      paginate: {
+        first: 'Awal',
+        last: 'Akhir',
+        next: 'Berikutnya',
+        previous: 'Sebelumnya'
+      }
+    }
   });
 })();
 </script>

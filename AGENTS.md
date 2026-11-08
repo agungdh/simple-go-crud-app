@@ -16,6 +16,8 @@ JSON. Database SQLite diakses lewat ORM Bun, dan migration memakai goose.
 - ORM: `github.com/uptrace/bun` + `bun/dialect/sqlitedialect`.
 - Migration: `github.com/pressly/goose/v3`, file SQL di
   `internal/database/migrations/`, di-embed dan dijalankan otomatis saat start.
+- Tabel daftar memakai DataTables 1.13 + integrasi Bootstrap 3, aset lokal di
+  `web/static/plugins/datatables/` (tanpa CDN).
 - Template & aset di-embed dengan `go:embed` (`web/assets.go`).
 
 Jangan menambah driver SQLite berbasis CGO; build harus tetap jalan dengan
@@ -48,7 +50,7 @@ Selalu jalankan `gofmt`, `go vet ./...`, dan `go test ./...` sebelum selesai.
 | `internal/model/pegawai.go` | entity + tag Bun/JSON |
 | `internal/database/` | koneksi SQLite, runner goose, file migration |
 | `web/templates/` | layout, partial, halaman |
-| `web/static/` | aset AdminLTE (disajikan dari `/dist` dan `/bower_components`) |
+| `web/static/` | aset AdminLTE + DataTables; disajikan dari `/dist`, `/bower_components`, `/plugins` |
 
 ## Konvensi wajib
 
@@ -68,6 +70,17 @@ Selalu jalankan `gofmt`, `go vet ./...`, dan `go test ./...` sebelum selesai.
   memakai event delegation pada `<tbody>`.
 - Saat membangun elemen dari data user, gunakan `textContent` (bukan
   `innerHTML`) untuk mencegah XSS.
+
+### Tabel daftar (DataTables)
+
+- Tabel pegawai memakai DataTables 1.13 dengan integrasi Bootstrap 3; aset
+  dimuat lokal dari `/plugins/datatables/` (CSS di `page-css`, JS di `page-js`).
+- Baris tetap dirender server-side oleh Go; DataTables hanya menangani cari,
+  urut, dan paginasi di sisi klien.
+- Jangan menambahkan baris placeholder "belum ada data" ke `<tbody>`; gunakan
+  opsi `language.emptyTable` agar tidak dianggap sebagai data.
+- Kolom aksi harus `orderable: false, searchable: false` di `columnDefs`.
+- Inisialisasi `DataTable()` cukup sekali setelah baris selesai dirender.
 
 ### Template & render
 
