@@ -2,6 +2,8 @@
 
 FROM golang:1.27
 
+COPY gitignore_global /etc/gitignore_global
+
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       ca-certificates \
@@ -11,6 +13,11 @@ RUN apt-get update \
       make \
       sqlite3 \
  && rm -rf /var/lib/apt/lists/*
+
+RUN git config --system user.name "AgungDH" \
+ && git config --system user.email "agungdh@live.com" \
+ && git config --system core.autocrlf input \
+ && git config --system core.excludesfile /etc/gitignore_global
 
 RUN go install github.com/pressly/goose/v3/cmd/goose@v3.29.0
 

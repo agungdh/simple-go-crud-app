@@ -64,6 +64,9 @@ Definisi devcontainer ada di `.devcontainer/`:
   `opencode` (terpasang di `/usr/local/bin/opencode`).
 - `.devcontainer/devcontainer.json` — menjalankan `go mod download` setelah
   container dibuat, meneruskan port `8080`, dan memasang ekstensi Go.
+- Identitas git (`AgungDH <agungdh@live.com>`, `core.autocrlf=input`) dan global
+  ignore (`.claude/`, `.vscode/`, `.commandcode`, `.idea`, `.zed`, `.DS_Store`)
+  dikonfigurasi di image lewat `.devcontainer/gitignore_global`.
 
 Cara pakai:
 
