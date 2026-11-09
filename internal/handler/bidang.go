@@ -31,7 +31,6 @@ func NewBidang(repo *repository.BidangRepository, renderer *render.Renderer, pag
 
 type bidangPageData struct {
 	pages.Page
-	Item       *model.Bidang
 	FormAction string
 	Method     string
 	Status     string
@@ -148,7 +147,8 @@ func (h *Bidang) Create(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Edit renders the edit-bidang page with the current values filled in.
+// Edit renders the edit-bidang page. The page itself contains no data: the
+// form fetches the current values from Show (GET /bidang/{id}).
 func (h *Bidang) Edit(w http.ResponseWriter, r *http.Request) {
 	page := pages.BidangEdit
 
@@ -158,23 +158,27 @@ func (h *Bidang) Edit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	item, err := h.repo.Get(r.Context(), id)
-	if errors.Is(err, repository.ErrNotFound) {
-		http.Error(w, "Data bidang tidak ditemukan", http.StatusNotFound)
-		return
-	}
-	if err != nil {
-		log.Printf("bidang edit form: %v", err)
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
-	}
-
 	h.render(w, page, bidangPageData{
 		Page:       page,
-		Item:       item,
 		FormAction: pages.Bidang.Route + "/" + strconv.FormatInt(id, 10),
 		Method:     http.MethodPut,
 	})
+}
+
+// Show returns a single bidang as JSON. It backs the edit form, which loads
+// its values client-side so the HTML page stays data-free.
+func (h *Bidang) Show(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseBidangID(w, r)
+	if !ok {
+		return
+	}
+
+	item, err := h.repo.Get(r.Context(), id)
+	if err != nil {
+		writeBidangRepoError(w, err, "Gagal memuat data bidang")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": item})
 }
 
 func (h *Bidang) render(w http.ResponseWriter, page pages.Page, data bidangPageData) {

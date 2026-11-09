@@ -35,7 +35,6 @@ func NewPegawai(repo *repository.PegawaiRepository, renderer *render.Renderer, p
 
 type pageData struct {
 	pages.Page
-	Item       *model.Pegawai
 	FormAction string
 	Method     string
 	Status     string
@@ -163,7 +162,8 @@ func (h *Pegawai) Create(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Edit renders the edit-pegawai page with the current values filled in.
+// Edit renders the edit-pegawai page. The page itself contains no data: the
+// form fetches the current values from Show (GET /pegawai/{id}).
 func (h *Pegawai) Edit(w http.ResponseWriter, r *http.Request) {
 	page := pages.PegawaiEdit
 
@@ -173,23 +173,27 @@ func (h *Pegawai) Edit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	item, err := h.repo.Get(r.Context(), id)
-	if errors.Is(err, repository.ErrNotFound) {
-		http.Error(w, "Data pegawai tidak ditemukan", http.StatusNotFound)
-		return
-	}
-	if err != nil {
-		log.Printf("pegawai edit form: %v", err)
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
-	}
-
 	h.render(w, page, pageData{
 		Page:       page,
-		Item:       item,
 		FormAction: pages.Pegawai.Route + "/" + strconv.FormatInt(id, 10),
 		Method:     http.MethodPut,
 	})
+}
+
+// Show returns a single pegawai as JSON. It backs the edit form, which loads
+// its values client-side so the HTML page stays data-free.
+func (h *Pegawai) Show(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseID(w, r)
+	if !ok {
+		return
+	}
+
+	item, err := h.repo.Get(r.Context(), id)
+	if err != nil {
+		writeRepoError(w, err, "Gagal memuat data pegawai")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": item})
 }
 
 func (h *Pegawai) render(w http.ResponseWriter, page pages.Page, data pageData) {

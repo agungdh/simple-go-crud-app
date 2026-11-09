@@ -7,9 +7,10 @@ Panduan untuk agent/kontributor yang bekerja di repo ini.
 Aplikasi Go + AdminLTE 2 untuk CRUD **pegawai** dan **bidang** dengan
 arsitektur **multi-page** (list, tambah, edit punya route/halaman
 masing-masing). Setiap pegawai **wajib** punya bidang (FK ke tabel `bidang`).
-Halaman dirender server-side dengan `html/template`; submit form tetap memakai
-`fetch()` ke API JSON. Database SQLite diakses lewat ORM Bun, dan migration
-memakai goose.
+Halaman dirender server-side dengan `html/template` sebagai **shell HTML tanpa
+data**; seluruh data diambil browser lewat `fetch()` ke endpoint JSON
+(`datatable` untuk tabel dan `show` untuk form edit). Submit form juga memakai
+`fetch()`. Database SQLite diakses lewat ORM Bun, dan migration memakai goose.
 
 ## Stack & dependensi
 
@@ -49,8 +50,8 @@ Selalu jalankan `gofmt`, `go vet ./...`, dan `go test ./...` sebelum selesai.
 | `internal/pages/pages.go` | definisi `Page`; `Pages` untuk halaman statis, `Pegawai`/`Bidang` untuk halaman dinamis |
 | `internal/render/render.go` | parse/cache template per layout+page, `Render`/`RenderData` |
 | `internal/router/router.go` | mount aset, halaman, route resource pegawai & bidang, dan 404 |
-| `internal/handler/pegawai.go` | handler resource pegawai (Index/Create/Store/Edit/Update/Destroy + Datatable), validasi request, mapping error |
-| `internal/handler/bidang.go` | handler resource bidang (termasuk endpoint autocomplete select2) |
+| `internal/handler/pegawai.go` | handler resource pegawai (Index/Create/Store/Show/Edit/Update/Destroy + Datatable), validasi request, mapping error |
+| `internal/handler/bidang.go` | handler resource bidang (termasuk Show dan endpoint autocomplete select2) |
 | `internal/repository/pegawai.go` | query Bun pegawai (JOIN bidang), error domain (`ErrNotFound`, `ErrDuplicateNIP`) |
 | `internal/repository/bidang.go` | query Bun bidang, error domain (`ErrNotFound`, `ErrDuplicateKode`, `ErrInUse`) |
 | `internal/model/pegawai.go` | entity pegawai + tag Bun/JSON (termasuk `bidang_id`, `bidang_nama`) |
@@ -70,13 +71,21 @@ Selalu jalankan `gofmt`, `go vet ./...`, dan `go test ./...` sebelum selesai.
     `GET /pegawai/datatable`).
   - `GET /pegawai/create` → `Create` (halaman form tambah).
   - `POST /pegawai` → `Store` (API JSON, kembalikan `201` + data).
-  - `GET /pegawai/{id}/edit` → `Edit` (halaman form edit).
+  - `GET /pegawai/{id}` → `Show` (API JSON, `{"data": ...}`; dipakai form
+    edit untuk mengisi field).
+  - `GET /pegawai/{id}/edit` → `Edit` (halaman form edit, tanpa data).
   - `PUT /pegawai/{id}` → `Update` (API JSON).
   - `DELETE /pegawai/{id}` → `Destroy` (API JSON, `204`).
   - Modul bidang mengikuti pola yang sama; tambahan endpoint pendukung:
     `GET /bidang/datatable` dan `GET /bidang/search?q=`.
-- Tidak ada endpoint JSON `index`/`show` terpisah; halaman HTML `Index`/`Edit`
-  yang menyajikan data, dan tabel memakai endpoint `datatable`.
+- **Halaman HTML tidak boleh membaca database.** `Index`, `Create`, dan `Edit`
+  hanya merender shell HTML (judul, form kosong, tabel kosong). Data selalu
+  diambil browser lewat `fetch()`:
+  - tabel daftar memakai `GET /{resource}/datatable`;
+  - form edit memakai `GET /{resource}/{id}` (`Show`), lalu mengisi field dan
+    Select2 di sisi klien.
+- Endpoint `Show` mengembalikan `404` bila data tidak ada; halaman edit tetap
+  merender `200` karena halaman itu statis dan error baru muncul saat fetch.
 - Route didaftarkan di `internal/router/router.go` memakai konstanta
   `pages.Pegawai.Route` / `pages.Bidang.Route` (bukan string hardcoded), supaya
   path halaman dan path API selalu konsisten.
@@ -88,13 +97,17 @@ Selalu jalankan `gofmt`, `go vet ./...`, dan `go test ./...` sebelum selesai.
   `/pegawai/create`, form edit di `/pegawai/{id}/edit`. Modul bidang mengikuti
   pola yang sama (`/bidang`, `/bidang/create`, `/bidang/{id}/edit`). Jangan
   memakai modal untuk CRUD.
+- Form edit **tidak boleh diisi data oleh server**. Saat halaman dimuat, JS
+  memanggil `fetch()` ke `GET /pegawai/{id}` (endpoint `Show`) lalu mengisi
+  input dan Select2 dari `body.data`. Template form hanya berisi field kosong.
 - **Semua submit form harus lewat `fetch()`** ke route resource (`POST /pegawai`
   atau `PUT /pegawai/{id}`) yang mengembalikan JSON. Jangan membuat handler POST
   yang merender HTML.
 - Set `Content-Type: application/json` dan kirim body JSON.
 - Setelah mutasi berhasil, redirect ke `/pegawai?status=created|updated|deleted`
   (atau `/bidang?status=...`); halaman daftar menampilkan notifikasi dari query
-  `status`.
+  `status`. Notifikasi ini satu-satunya nilai dinamis yang boleh dirender
+  server-side pada halaman daftar; data tabel tetap dari `datatable`.
 - Jika API mengembalikan error, tampilkan pesannya di halaman form tanpa reload.
 - Link edit memakai `<a href="/pegawai/{id}/edit">`, bukan handler JS.
 - Hapus data memakai `fetch()` DELETE ke `/pegawai/{id}` lalu redirect ke daftar;
@@ -102,9 +115,11 @@ Selalu jalankan `gofmt`, `go vet ./...`, dan `go test ./...` sebelum selesai.
 - Saat membangun elemen dari data user, gunakan `textContent` (bukan
   `innerHTML`) untuk mencegah XSS.
 - Field bidang pada form pegawai memakai Select2 dengan autocomplete
-  server-side ke `GET /bidang/search?q=`. `<select name="bidang_id">`
-  ikut terkirim lewat `FormData`, tetapi nilainya **wajib dikonversi ke
-  Number** sebelum `JSON.stringify` agar bisa di-decode ke `int64`.
+  server-side ke `GET /bidang/search?q=`. Saat memuat data edit, tambahkan
+  `<option>` terpilih dari `bidang_id`/`bidang_nama` lalu trigger `change`.
+  `<select name="bidang_id">` ikut terkirim lewat `FormData`, tetapi nilainya
+  **wajib dikonversi ke Number** sebelum `JSON.stringify` agar bisa di-decode ke
+  `int64`.
 
 ### Tabel daftar (DataTables)
 
@@ -142,9 +157,13 @@ Selalu jalankan `gofmt`, `go vet ./...`, dan `go test ./...` sebelum selesai.
   `pages.PegawaiCreate`, `pages.PegawaiEdit`, `pages.Bidang`, dst.), mount
   handler-nya secara eksplisit di router, dan render dengan
   `renderer.RenderData`.
+- Handler halaman (`Index`/`Create`/`Edit`) **tidak boleh** memanggil
+  repository. Data user tidak boleh masuk ke template; jangan menambahkan field
+  seperti `Item` pada data render. Form edit diisi lewat `fetch()` ke `Show`.
 - Form tambah dan edit berbagi satu template per modul
   (`pegawai_form.html` / `bidang_form.html`); bedakan lewat `Method`
-  (`POST`/`PUT`) dan `FormAction` pada page data.
+  (`POST`/`PUT`) dan `FormAction` pada page data. `FormAction` untuk edit adalah
+  `/{resource}/{id}`, sekaligus URL yang di-`fetch()` untuk memuat data.
 - Data untuk `RenderData` harus struct yang **embed `pages.Page`**, karena
   layout/partial membaca `.Title`, `.Active`, `.Sidebar`, dan `.BodyClass`.
 - Partial baru harus didaftarkan di `Renderer.partials()` agar ikut di-parse.
@@ -182,9 +201,12 @@ Selalu jalankan `gofmt`, `go vet ./...`, dan `go test ./...` sebelum selesai.
 
 ### API & error
 
-- Sukses: `{"data": ...}` (datatable/detail/mutasi), destroy mengembalikan `204`.
+- Sukses: `{"data": ...}` untuk `Show`, `Store`, `Update`, `datatable`, dan
+  `search`; `Destroy` mengembalikan `204` tanpa body.
 - Error: `{"error": "pesan"}` dengan status yang sesuai: `400`, `404`, `409`,
   `422`, `500`.
+- `GET /{resource}/{id}` (`Show`) mengembalikan `400` untuk ID tidak valid dan
+  `404` bila data tidak ada.
 - Trim input dan validasi di handler. Field wajib pegawai: `nip`, `nama`,
   `bidang_id`; email harus valid jika diisi. Field wajib bidang: `kode`, `nama`.
 - Endpoint pendukung: `GET /bidang/search?q=` mengembalikan
@@ -204,6 +226,9 @@ Selalu jalankan `gofmt`, `go vet ./...`, dan `go test ./...` sebelum selesai.
 - Test router ada di `internal/router/router_test.go` dan memakai SQLite
   sementara (`t.TempDir()`), jadi tidak menyentuh `app.db`.
 - Setiap fitur/endpoint baru harus punya test happy path + validasi/error.
+- Test form edit memverifikasi halaman tetap `200` tanpa data ter-render, lalu
+  memanggil endpoint `Show` untuk data, `404` saat tidak ada, dan `400` saat ID
+  tidak valid.
 - Test pegawai harus membuat bidang lebih dulu (helper `seedBidang`) dan
   menyertakan `bidang_id` pada payload.
 - Jalankan `go test ./...`; test tidak boleh bergantung pada state global atau

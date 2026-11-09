@@ -64,6 +64,7 @@ func New(registry []pages.Page, renderer *render.Renderer, webFS fs.FS, pegawai 
 		mux.Get(pages.PegawaiCreate.Route, pegawai.Create)
 		mux.Post(pages.Pegawai.Route, pegawai.Store)
 		mux.Get(pages.PegawaiEdit.Route, pegawai.Edit)
+		mux.Get(pages.Pegawai.Route+"/{id}", pegawai.Show)
 		mux.Put(pages.Pegawai.Route+"/{id}", pegawai.Update)
 		mux.Delete(pages.Pegawai.Route+"/{id}", pegawai.Destroy)
 	}
@@ -75,6 +76,7 @@ func New(registry []pages.Page, renderer *render.Renderer, webFS fs.FS, pegawai 
 		mux.Get(pages.BidangCreate.Route, bidang.Create)
 		mux.Post(pages.Bidang.Route, bidang.Store)
 		mux.Get(pages.BidangEdit.Route, bidang.Edit)
+		mux.Get(pages.Bidang.Route+"/{id}", bidang.Show)
 		mux.Put(pages.Bidang.Route+"/{id}", bidang.Update)
 		mux.Delete(pages.Bidang.Route+"/{id}", bidang.Destroy)
 	}

@@ -264,14 +264,37 @@ func TestPegawaiFormPages(t *testing.T) {
 		t.Fatalf("edit form status = %d, want 200", edit.Code)
 	}
 	editBody := edit.Body.String()
-	for _, want := range []string{`data-action="/pegawai/1"`, `data-method="PUT"`, `value="Budi Santoso"`} {
+	for _, want := range []string{`data-action="/pegawai/1"`, `data-method="PUT"`} {
 		if !strings.Contains(editBody, want) {
 			t.Errorf("edit form does not contain %q", want)
 		}
 	}
+	if strings.Contains(editBody, `value="Budi Santoso"`) {
+		t.Error("edit form must not render pegawai data server-side")
+	}
 
-	if rec := get(handler, "/pegawai/999/edit"); rec.Code != http.StatusNotFound {
-		t.Fatalf("missing edit form status = %d, want 404", rec.Code)
+	show := get(handler, "/pegawai/1")
+	if show.Code != http.StatusOK {
+		t.Fatalf("show status = %d, want 200", show.Code)
+	}
+	var shown pegawaiResponse
+	if err := json.Unmarshal(show.Body.Bytes(), &shown); err != nil {
+		t.Fatalf("decode show: %v", err)
+	}
+	if shown.Data.Nama != "Budi Santoso" || shown.Data.BidangNama != "Umum" {
+		t.Fatalf("unexpected show payload: %+v", shown.Data)
+	}
+
+	// The edit page is a static shell, so a missing row still renders; the
+	// client discovers the 404 when it fetches Show.
+	if rec := get(handler, "/pegawai/999/edit"); rec.Code != http.StatusOK {
+		t.Fatalf("missing edit form status = %d, want 200", rec.Code)
+	}
+	if rec := get(handler, "/pegawai/999"); rec.Code != http.StatusNotFound {
+		t.Fatalf("missing show status = %d, want 404", rec.Code)
+	}
+	if rec := get(handler, "/pegawai/abc"); rec.Code != http.StatusBadRequest {
+		t.Fatalf("invalid show status = %d, want 400", rec.Code)
 	}
 }
 
@@ -349,8 +372,8 @@ func TestPegawaiCRUDFlow(t *testing.T) {
 	if rec := send(handler, http.MethodDelete, "/pegawai/1", nil); rec.Code != http.StatusNoContent {
 		t.Fatalf("delete status = %d, want 204", rec.Code)
 	}
-	if rec := get(handler, "/pegawai/1/edit"); rec.Code != http.StatusNotFound {
-		t.Fatalf("edit after delete status = %d, want 404", rec.Code)
+	if rec := get(handler, "/pegawai/1"); rec.Code != http.StatusNotFound {
+		t.Fatalf("show after delete status = %d, want 404", rec.Code)
 	}
 }
 
@@ -566,14 +589,37 @@ func TestBidangFormPages(t *testing.T) {
 		t.Fatalf("edit form status = %d, want 200", edit.Code)
 	}
 	editBody := edit.Body.String()
-	for _, want := range []string{`data-action="/bidang/1"`, `data-method="PUT"`, `value="BID-01"`} {
+	for _, want := range []string{`data-action="/bidang/1"`, `data-method="PUT"`} {
 		if !strings.Contains(editBody, want) {
 			t.Errorf("edit form does not contain %q", want)
 		}
 	}
+	if strings.Contains(editBody, `value="BID-01"`) {
+		t.Error("edit form must not render bidang data server-side")
+	}
 
-	if rec := get(handler, "/bidang/999/edit"); rec.Code != http.StatusNotFound {
-		t.Fatalf("missing edit form status = %d, want 404", rec.Code)
+	show := get(handler, "/bidang/1")
+	if show.Code != http.StatusOK {
+		t.Fatalf("show status = %d, want 200", show.Code)
+	}
+	var shown bidangResponse
+	if err := json.Unmarshal(show.Body.Bytes(), &shown); err != nil {
+		t.Fatalf("decode show: %v", err)
+	}
+	if shown.Data.Kode != "BID-01" || shown.Data.Nama != "Umum" {
+		t.Fatalf("unexpected show payload: %+v", shown.Data)
+	}
+
+	// The edit page is a static shell, so a missing row still renders; the
+	// client discovers the 404 when it fetches Show.
+	if rec := get(handler, "/bidang/999/edit"); rec.Code != http.StatusOK {
+		t.Fatalf("missing edit form status = %d, want 200", rec.Code)
+	}
+	if rec := get(handler, "/bidang/999"); rec.Code != http.StatusNotFound {
+		t.Fatalf("missing show status = %d, want 404", rec.Code)
+	}
+	if rec := get(handler, "/bidang/abc"); rec.Code != http.StatusBadRequest {
+		t.Fatalf("invalid show status = %d, want 400", rec.Code)
 	}
 }
 
@@ -635,8 +681,8 @@ func TestBidangCRUDFlow(t *testing.T) {
 	if rec := send(handler, http.MethodDelete, "/bidang/1", nil); rec.Code != http.StatusNoContent {
 		t.Fatalf("delete status = %d, want 204", rec.Code)
 	}
-	if rec := get(handler, "/bidang/1/edit"); rec.Code != http.StatusNotFound {
-		t.Fatalf("edit after delete status = %d, want 404", rec.Code)
+	if rec := get(handler, "/bidang/1"); rec.Code != http.StatusNotFound {
+		t.Fatalf("show after delete status = %d, want 404", rec.Code)
 	}
 }
 

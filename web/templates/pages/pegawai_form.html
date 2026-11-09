@@ -26,35 +26,34 @@
 
                 <div class="form-group">
                   <label for="nip">NIP <span class="text-danger">*</span></label>
-                  <input type="text" class="form-control" id="nip" name="nip" maxlength="50" required value="{{with .Item}}{{.NIP}}{{end}}">
+                  <input type="text" class="form-control" id="nip" name="nip" maxlength="50" required>
                 </div>
                 <div class="form-group">
                   <label for="nama">Nama <span class="text-danger">*</span></label>
-                  <input type="text" class="form-control" id="nama" name="nama" maxlength="150" required value="{{with .Item}}{{.Nama}}{{end}}">
+                  <input type="text" class="form-control" id="nama" name="nama" maxlength="150" required>
                 </div>
                 <div class="form-group">
                   <label for="jabatan">Jabatan</label>
-                  <input type="text" class="form-control" id="jabatan" name="jabatan" maxlength="100" value="{{with .Item}}{{.Jabatan}}{{end}}">
+                  <input type="text" class="form-control" id="jabatan" name="jabatan" maxlength="100">
                 </div>
                 <div class="form-group">
                   <label for="bidang_id">Bidang <span class="text-danger">*</span></label>
                   <select class="form-control" id="bidang_id" name="bidang_id"
                           data-search-url="/bidang/search" required style="width: 100%;">
                     <option value=""></option>
-                    {{with .Item}}{{if .BidangID}}<option value="{{.BidangID}}" selected>{{.BidangNama}}</option>{{end}}{{end}}
                   </select>
                 </div>
                 <div class="form-group">
                   <label for="email">Email</label>
-                  <input type="email" class="form-control" id="email" name="email" maxlength="150" value="{{with .Item}}{{.Email}}{{end}}">
+                  <input type="email" class="form-control" id="email" name="email" maxlength="150">
                 </div>
                 <div class="form-group">
                   <label for="telepon">Telepon</label>
-                  <input type="text" class="form-control" id="telepon" name="telepon" maxlength="30" value="{{with .Item}}{{.Telepon}}{{end}}">
+                  <input type="text" class="form-control" id="telepon" name="telepon" maxlength="30">
                 </div>
                 <div class="form-group">
                   <label for="alamat">Alamat</label>
-                  <textarea class="form-control" id="alamat" name="alamat" rows="3" maxlength="500">{{with .Item}}{{.Alamat}}{{end}}</textarea>
+                  <textarea class="form-control" id="alamat" name="alamat" rows="3" maxlength="500"></textarea>
                 </div>
               </div>
               <div class="box-footer">
@@ -84,6 +83,8 @@
   var form = document.getElementById('form-pegawai');
   var alertBox = document.getElementById('alert');
   var submitButton = document.getElementById('btn-simpan');
+  var method = form.dataset.method;
+  var isEdit = method === 'PUT';
 
   function showError(message) {
     alertBox.className = 'alert alert-danger';
@@ -98,6 +99,53 @@
     });
     data.bidang_id = data.bidang_id ? Number(data.bidang_id) : 0;
     return data;
+  }
+
+  function fill(item) {
+    form.nip.value = item.nip || '';
+    form.nama.value = item.nama || '';
+    form.jabatan.value = item.jabatan || '';
+    form.email.value = item.email || '';
+    form.telepon.value = item.telepon || '';
+    form.alamat.value = item.alamat || '';
+
+    if (item.bidang_id) {
+      var option = new Option(item.bidang_nama || '', item.bidang_id, true, true);
+      $('#bidang_id').append(option).trigger('change');
+    }
+  }
+
+  async function loadItem() {
+    if (!isEdit) {
+      return;
+    }
+
+    submitButton.disabled = true;
+    try {
+      var response = await fetch(form.dataset.action, {
+        headers: { 'Accept': 'application/json' }
+      });
+
+      var body = null;
+      try {
+        body = await response.json();
+      } catch (err) {
+        body = null;
+      }
+
+      if (!response.ok) {
+        throw new Error((body && body.error) || 'Gagal memuat data pegawai');
+      }
+      if (!body || !body.data) {
+        throw new Error('Data pegawai tidak ditemukan');
+      }
+
+      fill(body.data);
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      submitButton.disabled = false;
+    }
   }
 
   $('#bidang_id').select2({
@@ -125,11 +173,10 @@
     }
   });
 
+  loadItem();
+
   form.addEventListener('submit', async function (event) {
     event.preventDefault();
-
-    var method = form.dataset.method;
-    var isEdit = method === 'PUT';
 
     submitButton.disabled = true;
     submitButton.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Menyimpan...';
