@@ -66,7 +66,10 @@ Definisi devcontainer ada di `.devcontainer/`:
   container dibuat, meneruskan port `8080`, dan memasang ekstensi Go.
 - Identitas git (`AgungDH <agungdh@live.com>`, `core.autocrlf=input`) dan global
   ignore (`.claude/`, `.vscode/`, `.commandcode`, `.idea`, `.zed`, `.DS_Store`)
-  dikonfigurasi di image lewat `.devcontainer/gitignore_global`.
+  dikonfigurasi di image lewat `/etc/gitignore_global`. `GIT_CONFIG_GLOBAL`
+  diarahkan ke `/etc/gitconfig.devcontainer` agar konfigurasi host yang disalin
+  VS Code (`dev.containers.copyGitConfig`) tidak menimpa `core.excludesFile`
+  dengan path host yang tidak ada di container.
 
 Cara pakai:
 

@@ -14,10 +14,16 @@ RUN apt-get update \
       sqlite3 \
  && rm -rf /var/lib/apt/lists/*
 
-RUN git config --system user.name "AgungDH" \
- && git config --system user.email "agungdh@live.com" \
- && git config --system core.autocrlf input \
- && git config --system core.excludesfile /etc/gitignore_global
+RUN printf '%s\n' \
+      '[user]' \
+      '    name = AgungDH' \
+      '    email = agungdh@live.com' \
+      '[core]' \
+      '    autocrlf = input' \
+      '    excludesfile = /etc/gitignore_global' \
+      > /etc/gitconfig.devcontainer
+
+ENV GIT_CONFIG_GLOBAL=/etc/gitconfig.devcontainer
 
 RUN go install github.com/pressly/goose/v3/cmd/goose@v3.29.0
 
