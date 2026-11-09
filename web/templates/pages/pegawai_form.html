@@ -1,5 +1,6 @@
 {{define "page-css"}}
 <link rel="stylesheet" href="/plugins/select2/select2.min.css">
+<style>[x-cloak] { display: none !important; }</style>
 {{end}}
 
 {{define "content"}}
@@ -20,45 +21,55 @@
       <div class="row">
         <div class="col-md-8">
           <div class="box box-primary">
-            <form id="form-pegawai" data-action="{{.FormAction}}" data-method="{{.Method}}">
+            <form id="form-pegawai" data-action="{{.FormAction}}" data-method="{{.Method}}"
+                  x-data="pegawaiForm" @submit.prevent="submit">
               <div class="box-body">
-                <div class="alert" id="alert" style="display: none;"></div>
+                <div class="alert alert-danger" id="alert" x-show="error" x-text="error" x-cloak></div>
 
                 <div class="form-group">
                   <label for="nip">NIP <span class="text-danger">*</span></label>
-                  <input type="text" class="form-control" id="nip" name="nip" maxlength="50" required>
+                  <input type="text" class="form-control" id="nip" name="nip" maxlength="50" required
+                         x-model="form.nip">
                 </div>
                 <div class="form-group">
                   <label for="nama">Nama <span class="text-danger">*</span></label>
-                  <input type="text" class="form-control" id="nama" name="nama" maxlength="150" required>
+                  <input type="text" class="form-control" id="nama" name="nama" maxlength="150" required
+                         x-model="form.nama">
                 </div>
                 <div class="form-group">
                   <label for="jabatan">Jabatan</label>
-                  <input type="text" class="form-control" id="jabatan" name="jabatan" maxlength="100">
+                  <input type="text" class="form-control" id="jabatan" name="jabatan" maxlength="100"
+                         x-model="form.jabatan">
                 </div>
                 <div class="form-group">
                   <label for="bidang_id">Bidang <span class="text-danger">*</span></label>
                   <select class="form-control" id="bidang_id" name="bidang_id"
-                          data-search-url="/bidang/search" required style="width: 100%;">
+                          data-search-url="/bidang/search" required style="width: 100%;"
+                          x-ref="bidang" x-model="form.bidang_id">
                     <option value=""></option>
                   </select>
                 </div>
                 <div class="form-group">
                   <label for="email">Email</label>
-                  <input type="email" class="form-control" id="email" name="email" maxlength="150">
+                  <input type="email" class="form-control" id="email" name="email" maxlength="150"
+                         x-model="form.email">
                 </div>
                 <div class="form-group">
                   <label for="telepon">Telepon</label>
-                  <input type="text" class="form-control" id="telepon" name="telepon" maxlength="30">
+                  <input type="text" class="form-control" id="telepon" name="telepon" maxlength="30"
+                         x-model="form.telepon">
                 </div>
                 <div class="form-group">
                   <label for="alamat">Alamat</label>
-                  <textarea class="form-control" id="alamat" name="alamat" rows="3" maxlength="500"></textarea>
+                  <textarea class="form-control" id="alamat" name="alamat" rows="3" maxlength="500"
+                            x-model="form.alamat"></textarea>
                 </div>
               </div>
               <div class="box-footer">
-                <button type="submit" class="btn btn-primary" id="btn-simpan">
-                  <i class="fa fa-save"></i> Simpan
+                <button type="submit" class="btn btn-primary" id="btn-simpan"
+                        x-bind:disabled="saving || loading">
+                  <span x-show="!saving"><i class="fa fa-save"></i> Simpan</span>
+                  <span x-show="saving" x-cloak><i class="fa fa-spinner fa-spin"></i> Menyimpan...</span>
                 </button>
                 <a href="/pegawai" class="btn btn-default">Batal</a>
               </div>
@@ -76,140 +87,162 @@
 <script src="/dist/js/adminlte.min.js"></script>
 <script src="/plugins/select2/select2.min.js"></script>
 <script src="/plugins/select2/i18n/id.js"></script>
+<script defer src="/plugins/alpinejs/alpine.min.js"></script>
 <script>
-(function () {
-  'use strict';
-
-  var form = document.getElementById('form-pegawai');
-  var alertBox = document.getElementById('alert');
-  var submitButton = document.getElementById('btn-simpan');
-  var method = form.dataset.method;
-  var isEdit = method === 'PUT';
-
-  function showError(message) {
-    alertBox.className = 'alert alert-danger';
-    alertBox.textContent = message;
-    alertBox.style.display = '';
-  }
-
-  function payload() {
-    var data = {};
-    new FormData(form).forEach(function (value, key) {
-      data[key] = value;
-    });
-    data.bidang_id = data.bidang_id ? Number(data.bidang_id) : 0;
-    return data;
-  }
-
-  function fill(item) {
-    form.nip.value = item.nip || '';
-    form.nama.value = item.nama || '';
-    form.jabatan.value = item.jabatan || '';
-    form.email.value = item.email || '';
-    form.telepon.value = item.telepon || '';
-    form.alamat.value = item.alamat || '';
-
-    if (item.bidang_id) {
-      var option = new Option(item.bidang_nama || '', item.bidang_id, true, true);
-      $('#bidang_id').append(option).trigger('change');
-    }
-  }
-
-  async function loadItem() {
-    if (!isEdit) {
-      return;
-    }
-
-    submitButton.disabled = true;
-    try {
-      var response = await fetch(form.dataset.action, {
-        headers: { 'Accept': 'application/json' }
-      });
-
-      var body = null;
-      try {
-        body = await response.json();
-      } catch (err) {
-        body = null;
-      }
-
-      if (!response.ok) {
-        throw new Error((body && body.error) || 'Gagal memuat data pegawai');
-      }
-      if (!body || !body.data) {
-        throw new Error('Data pegawai tidak ditemukan');
-      }
-
-      fill(body.data);
-    } catch (err) {
-      showError(err.message);
-    } finally {
-      submitButton.disabled = false;
-    }
-  }
-
-  $('#bidang_id').select2({
-    width: '100%',
-    language: 'id',
-    allowClear: true,
-    placeholder: 'Cari bidang…',
-    minimumInputLength: 2,
-    ajax: {
-      url: $('#bidang_id').data('search-url'),
-      dataType: 'json',
-      delay: 250,
-      headers: { 'Accept': 'application/json' },
-      data: function (params) {
-        return { q: params.term || '' };
+document.addEventListener('alpine:init', function () {
+  Alpine.data('pegawaiForm', function () {
+    return {
+      action: '',
+      method: 'POST',
+      isEdit: false,
+      loading: false,
+      saving: false,
+      error: '',
+      form: {
+        nip: '',
+        nama: '',
+        jabatan: '',
+        bidang_id: '',
+        email: '',
+        telepon: '',
+        alamat: ''
       },
-      processResults: function (data) {
-        return {
-          results: (data.data || []).map(function (item) {
-            return { id: item.id, text: item.kode + ' — ' + item.nama };
-          })
-        };
+
+      init: function () {
+        this.action = this.$el.dataset.action || '';
+        this.method = (this.$el.dataset.method || 'POST').toUpperCase();
+        this.isEdit = this.method === 'PUT';
+
+        this.initBidang();
+
+        if (this.isEdit) {
+          this.loadItem();
+        }
       },
-      cache: true
-    }
-  });
 
-  loadItem();
+      initBidang: function () {
+        var self = this;
+        var $select = $(this.$refs.bidang);
 
-  form.addEventListener('submit', async function (event) {
-    event.preventDefault();
+        $select.select2({
+          width: '100%',
+          language: 'id',
+          allowClear: true,
+          placeholder: 'Cari bidang…',
+          minimumInputLength: 2,
+          ajax: {
+            url: $select.data('search-url'),
+            dataType: 'json',
+            delay: 250,
+            headers: { 'Accept': 'application/json' },
+            data: function (params) {
+              return { q: params.term || '' };
+            },
+            processResults: function (data) {
+              return {
+                results: (data.data || []).map(function (item) {
+                  return { id: item.id, text: item.kode + ' — ' + item.nama };
+                })
+              };
+            },
+            cache: true
+          }
+        });
 
-    submitButton.disabled = true;
-    submitButton.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Menyimpan...';
-    alertBox.style.display = 'none';
+        // Select2 triggers a jQuery change event, so sync Alpine state here.
+        $select.on('change', function () {
+          self.form.bidang_id = this.value || '';
+        });
+      },
 
-    try {
-      var response = await fetch(form.dataset.action, {
-        method: method,
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload())
-      });
+      payload: function () {
+        return Object.assign({}, this.form, {
+          bidang_id: this.form.bidang_id ? Number(this.form.bidang_id) : 0
+        });
+      },
 
-      var body = null;
-      try {
-        body = await response.json();
-      } catch (err) {
-        body = null;
+      fill: function (item) {
+        this.form.nip = item.nip || '';
+        this.form.nama = item.nama || '';
+        this.form.jabatan = item.jabatan || '';
+        this.form.email = item.email || '';
+        this.form.telepon = item.telepon || '';
+        this.form.alamat = item.alamat || '';
+
+        if (item.bidang_id) {
+          var select = this.$refs.bidang;
+          select.add(new Option(item.bidang_nama || '', String(item.bidang_id), true, true));
+          this.form.bidang_id = String(item.bidang_id);
+          $(select).trigger('change');
+        } else {
+          this.form.bidang_id = '';
+        }
+      },
+
+      loadItem: async function () {
+        this.loading = true;
+        this.error = '';
+
+        try {
+          var response = await fetch(this.action, {
+            headers: { 'Accept': 'application/json' }
+          });
+          var body = await this.readJSON(response);
+
+          if (!response.ok) {
+            throw new Error((body && body.error) || 'Gagal memuat data pegawai');
+          }
+          if (!body || !body.data) {
+            throw new Error('Data pegawai tidak ditemukan');
+          }
+
+          this.fill(body.data);
+        } catch (err) {
+          this.error = (err && err.message) || 'Gagal memuat data pegawai';
+        } finally {
+          this.loading = false;
+        }
+      },
+
+      submit: async function () {
+        if (this.saving) {
+          return;
+        }
+
+        this.saving = true;
+        this.error = '';
+
+        try {
+          var response = await fetch(this.action, {
+            method: this.method,
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(this.payload())
+          });
+          var body = await this.readJSON(response);
+
+          if (!response.ok) {
+            throw new Error((body && body.error) || 'Terjadi kesalahan (' + response.status + ')');
+          }
+
+          window.location.href = '/pegawai?status=' + (this.isEdit ? 'updated' : 'created');
+        } catch (err) {
+          this.error = (err && err.message) || 'Terjadi kesalahan';
+          this.saving = false;
+        }
+      },
+
+      readJSON: async function (response) {
+        try {
+          return await response.json();
+        } catch (err) {
+          return null;
+        }
       }
-
-      if (!response.ok) {
-        throw new Error((body && body.error) || 'Terjadi kesalahan (' + response.status + ')');
-      }
-
-      window.location.href = '/pegawai?status=' + (isEdit ? 'updated' : 'created');
-    } catch (err) {
-      showError(err.message);
-      submitButton.disabled = false;
-      submitButton.innerHTML = '<i class="fa fa-save"></i> Simpan';
-    }
+    };
   });
-})();
+});
 </script>
 {{end}}

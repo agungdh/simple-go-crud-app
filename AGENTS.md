@@ -23,6 +23,8 @@ data**; seluruh data diambil browser lewat `fetch()` ke endpoint JSON
   Bootstrap 3, aset lokal di `web/static/plugins/datatables/` (tanpa CDN).
 - Select2 4.0.13 untuk autocomplete bidang, aset lokal di
   `web/static/plugins/select2/` (tanpa CDN).
+- Alpine.js 3.17.5 untuk state form dan submit `fetch()`, aset lokal di
+  `web/static/plugins/alpinejs/` (tanpa CDN).
 - Template & aset di-embed dengan `go:embed` (`web/assets.go`).
 
 Jangan menambah driver SQLite berbasis CGO; build harus tetap jalan dengan
@@ -58,7 +60,7 @@ Selalu jalankan `gofmt`, `go vet ./...`, dan `go test ./...` sebelum selesai.
 | `internal/model/bidang.go` | entity bidang + tag Bun/JSON |
 | `internal/database/` | koneksi SQLite, runner goose, file migration |
 | `web/templates/` | layout, partial, halaman |
-| `web/static/` | aset AdminLTE + DataTables + Select2; disajikan dari `/dist`, `/bower_components`, `/plugins` |
+| `web/static/` | aset AdminLTE + DataTables + Select2 + Alpine.js; disajikan dari `/dist`, `/bower_components`, `/plugins` |
 
 ## Konvensi wajib
 
@@ -100,6 +102,9 @@ Selalu jalankan `gofmt`, `go vet ./...`, dan `go test ./...` sebelum selesai.
 - Form edit **tidak boleh diisi data oleh server**. Saat halaman dimuat, JS
   memanggil `fetch()` ke `GET /pegawai/{id}` (endpoint `Show`) lalu mengisi
   input dan Select2 dari `body.data`. Template form hanya berisi field kosong.
+- Halaman form memakai Alpine.js (`pegawaiForm` / `bidangForm`) untuk state dan
+  submit. Tetap gunakan `data-action`/`data-method` pada `<form>` sebagai
+  sumber URL/metode, dan `x-model` untuk field biasa.
 - **Semua submit form harus lewat `fetch()`** ke route resource (`POST /pegawai`
   atau `PUT /pegawai/{id}`) yang mengembalikan JSON. Jangan membuat handler POST
   yang merender HTML.
@@ -168,7 +173,10 @@ Selalu jalankan `gofmt`, `go vet ./...`, dan `go test ./...` sebelum selesai.
   layout/partial membaca `.Title`, `.Active`, `.Sidebar`, dan `.BodyClass`.
 - Partial baru harus didaftarkan di `Renderer.partials()` agar ikut di-parse.
 - CSS/JS khusus halaman diletakkan di blok `page-css`/`page-js`
-  (jangan tambah script global di layout). Select2 dimuat di form pegawai.
+  (jangan tambah script global di layout). Select2 dan Alpine.js dimuat di
+  halaman form.
+- Select2 men-trigger event jQuery `change`, bukan native event; sinkronkan
+  state Alpine lewat handler jQuery pada elemen `<select>`.
 - Template dan aset di-embed: perubahan memerlukan restart/build ulang.
 
 ### Database & migration

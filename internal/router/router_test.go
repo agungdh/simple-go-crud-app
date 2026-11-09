@@ -175,6 +175,7 @@ func TestEmbeddedAssetsAreServed(t *testing.T) {
 		"/plugins/datatables/dataTables.bootstrap.min.css",
 		"/plugins/select2/select2.min.js",
 		"/plugins/select2/select2.min.css",
+		"/plugins/alpinejs/alpine.min.js",
 	}
 	for _, asset := range required {
 		if rec := get(handler, asset); rec.Code != http.StatusOK {
@@ -244,7 +245,7 @@ func TestPegawaiFormPages(t *testing.T) {
 		t.Fatalf("create form status = %d, want 200", create.Code)
 	}
 	createBody := create.Body.String()
-	for _, want := range []string{`id="form-pegawai"`, `data-action="/pegawai"`, `data-method="POST"`, `name="bidang_id"`, "/plugins/select2/select2.min.js", "/bidang/search"} {
+	for _, want := range []string{`id="form-pegawai"`, `data-action="/pegawai"`, `data-method="POST"`, `name="bidang_id"`, "/plugins/select2/select2.min.js", "/bidang/search", "/plugins/alpinejs/alpine.min.js", `x-data="pegawaiForm"`, `x-model="form.nip"`} {
 		if !strings.Contains(createBody, want) {
 			t.Errorf("create form does not contain %q", want)
 		}
@@ -570,7 +571,7 @@ func TestBidangFormPages(t *testing.T) {
 		t.Fatalf("create form status = %d, want 200", create.Code)
 	}
 	createBody := create.Body.String()
-	for _, want := range []string{`id="form-bidang"`, `data-action="/bidang"`, `data-method="POST"`, `name="kode"`, `name="nama"`} {
+	for _, want := range []string{`id="form-bidang"`, `data-action="/bidang"`, `data-method="POST"`, `name="kode"`, `name="nama"`, "/plugins/alpinejs/alpine.min.js", `x-data="bidangForm"`, `x-model="form.kode"`} {
 		if !strings.Contains(createBody, want) {
 			t.Errorf("create form does not contain %q", want)
 		}

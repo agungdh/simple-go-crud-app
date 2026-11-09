@@ -18,7 +18,7 @@ berupa **satu file yang bisa langsung dibagikan** tanpa folder `web/`.
 | Migration   | `github.com/pressly/goose/v3` (embedded, auto-migrate) |
 | Template    | `html/template` + `go:embed`                           |
 | Tabel       | DataTables 1.13 server-side processing (Bootstrap 3)   |
-| Form submit | `fetch()` dari JavaScript, API JSON                    |
+| Form        | Alpine.js 3.17.5 + `fetch()`, API JSON                |
 
 Migration dijalankan otomatis saat aplikasi start. File migration tetap
 kompatibel dengan goose CLI (`make migrate`).
@@ -93,9 +93,11 @@ CRUD pegawai memakai **multi-page**: setiap aksi punya halaman sendiri.
 - `/pegawai/{id}/edit` — halaman form edit dengan data terisi.
 
 Tambah/edit/hapus tetap **disubmit lewat `fetch()` ke endpoint JSON**, bukan
-full-page POST. Setelah berhasil, browser diarahkan kembali ke `/pegawai` dengan
-query `?status=created|updated|deleted` untuk menampilkan notifikasi. Jika
-validasi gagal, pesan error dari API ditampilkan di halaman form tanpa reload.
+full-page POST. Form dikelola dengan Alpine.js (`x-data`/`x-model`), sedangkan
+Select2 tetap dipakai untuk autocomplete bidang. Setelah berhasil, browser
+diarahkan kembali ke `/pegawai` dengan query `?status=created|updated|deleted`
+untuk menampilkan notifikasi. Jika validasi gagal, pesan error dari API
+ditampilkan di halaman form tanpa reload.
 
 Field pegawai: `nip` (unik, wajib), `nama` (wajib), `jabatan`, `email`,
 `telepon`, `alamat`, serta `created_at`/`updated_at` yang diisi otomatis.
