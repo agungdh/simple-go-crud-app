@@ -13,6 +13,18 @@ type Page struct {
 	FooterClass string
 }
 
+// Dashboard is the landing page. Its content is intentionally empty for now.
+var Dashboard = Page{
+	Route:       "/dashboard",
+	Template:    "dashboard.html",
+	Layout:      "main",
+	Title:       "AdminLTE 2 | Dashboard",
+	BodyClass:   "hold-transition skin-blue sidebar-mini",
+	Active:      "dashboard",
+	Sidebar:     "default",
+	FooterClass: "main-footer",
+}
+
 // Pegawai is the dynamic CRUD page. It is not part of Pages because it needs
 // data from the database and is mounted by the pegawai handler instead.
 var Pegawai = Page{
@@ -89,6 +101,7 @@ var BidangCreate = Page{
 
 // Pages is the set of static AdminLTE pages kept by this demo.
 var Pages = []Page{
+	Dashboard,
 	{
 		Route:       "/pages/examples/404.html",
 		Template:    "examples/404.html",

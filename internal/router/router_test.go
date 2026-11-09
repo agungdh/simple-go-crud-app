@@ -117,19 +117,35 @@ func TestAllPagesRender(t *testing.T) {
 	}
 }
 
-func TestRootRedirectsToPegawai(t *testing.T) {
+func TestRootRedirectsToDashboard(t *testing.T) {
 	handler := newHandler(t)
 
 	rec := get(handler, "/")
 	if rec.Code != http.StatusFound {
 		t.Fatalf("status = %d, want 302", rec.Code)
 	}
-	if loc := rec.Header().Get("Location"); loc != pages.Pegawai.Route {
-		t.Fatalf("location = %q, want %q", loc, pages.Pegawai.Route)
+	if loc := rec.Header().Get("Location"); loc != pages.Dashboard.Route {
+		t.Fatalf("location = %q, want %q", loc, pages.Dashboard.Route)
 	}
 
 	if rec := get(handler, "/starter.html"); rec.Code != http.StatusNotFound {
 		t.Fatalf("starter status = %d, want 404", rec.Code)
+	}
+}
+
+func TestDashboardPageRenders(t *testing.T) {
+	handler := newHandler(t)
+
+	rec := get(handler, pages.Dashboard.Route)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	body := rec.Body.String()
+	for _, want := range []string{"Dashboard", `href="/dashboard"`, `href="/pegawai"`, `href="/bidang"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("body does not contain %q", want)
+		}
 	}
 }
 

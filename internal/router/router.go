@@ -53,9 +53,9 @@ func New(registry []pages.Page, renderer *render.Renderer, webFS fs.FS, pegawai 
 		})
 	}
 
-	// The dashboard root sends users straight to the main CRUD page.
+	// The root sends users straight to the dashboard landing page.
 	mux.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, pages.Pegawai.Route, http.StatusFound)
+		http.Redirect(w, r, pages.Dashboard.Route, http.StatusFound)
 	})
 
 	if pegawai != nil {
