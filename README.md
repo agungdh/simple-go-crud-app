@@ -55,6 +55,27 @@ go run . -db data/app.db      # ganti lokasi file SQLite
 Database default adalah `app.db` di direktori kerja dan dibuat otomatis.
 File `*.db`, `*.db-shm`, dan `*.db-wal` sudah di-ignore oleh git.
 
+## Devcontainer
+
+Definisi devcontainer ada di `.devcontainer/`:
+
+- `.devcontainer/Dockerfile` — berbasis `golang:1.27`, dilengkapi `make`,
+  `sqlite3`, `jq`, `git`, dan `goose` v3.29.0 (versi yang sama dengan `go.mod`).
+- `.devcontainer/devcontainer.json` — menjalankan `go mod download` setelah
+  container dibuat, meneruskan port `8080`, dan memasang ekstensi Go.
+
+Cara pakai:
+
+1. Buka repo di VS Code, lalu **Dev Containers: Reopen in Container**.
+2. `make run`, lalu buka <http://localhost:8080>.
+
+Atau lewat CLI:
+
+```bash
+devcontainer up --workspace-folder .
+devcontainer exec --workspace-folder . make test
+```
+
 ## CRUD Pegawai
 
 CRUD pegawai memakai **multi-page**: setiap aksi punya halaman sendiri.
