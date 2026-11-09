@@ -90,16 +90,6 @@ var BidangCreate = Page{
 // Pages is the set of static AdminLTE pages kept by this demo.
 var Pages = []Page{
 	{
-		Route:       "/starter.html",
-		Template:    "starter.html",
-		Layout:      "main",
-		Title:       "AdminLTE 2 | Starter",
-		BodyClass:   "hold-transition skin-blue sidebar-mini",
-		Active:      "starter",
-		Sidebar:     "starter",
-		FooterClass: "main-footer",
-	},
-	{
 		Route:       "/pages/examples/404.html",
 		Template:    "examples/404.html",
 		Layout:      "main",

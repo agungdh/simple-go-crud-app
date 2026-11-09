@@ -117,15 +117,19 @@ func TestAllPagesRender(t *testing.T) {
 	}
 }
 
-func TestRootRendersStarter(t *testing.T) {
+func TestRootRedirectsToPegawai(t *testing.T) {
 	handler := newHandler(t)
 
 	rec := get(handler, "/")
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200", rec.Code)
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302", rec.Code)
 	}
-	if !strings.Contains(rec.Body.String(), "<title>AdminLTE 2 | Starter</title>") {
-		t.Fatal("root did not render the starter page")
+	if loc := rec.Header().Get("Location"); loc != pages.Pegawai.Route {
+		t.Fatalf("location = %q, want %q", loc, pages.Pegawai.Route)
+	}
+
+	if rec := get(handler, "/starter.html"); rec.Code != http.StatusNotFound {
+		t.Fatalf("starter status = %d, want 404", rec.Code)
 	}
 }
 
@@ -205,10 +209,13 @@ func TestPegawaiPageRenders(t *testing.T) {
 	}
 
 	body := rec.Body.String()
-	for _, want := range []string{"Data Pegawai", "Tambah Pegawai", "/pegawai", `id="tabel-pegawai"`, "/plugins/datatables/jquery.dataTables.min.js", "serverSide: true", "/pegawai/datatable"} {
+	for _, want := range []string{"Data Pegawai", "Tambah Pegawai", "/pegawai", `id="tabel-pegawai"`, "/plugins/datatables/jquery.dataTables.min.js", "serverSide: true", "/pegawai/datatable", `href="/bidang"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("body does not contain %q", want)
 		}
+	}
+	if strings.Contains(body, "/starter.html") {
+		t.Error("body still references the removed starter page")
 	}
 }
 

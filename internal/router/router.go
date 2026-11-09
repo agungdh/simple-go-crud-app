@@ -53,11 +53,10 @@ func New(registry []pages.Page, renderer *render.Renderer, webFS fs.FS, pegawai 
 		})
 	}
 
-	if starter, ok := byRoute["/starter.html"]; ok {
-		mux.Get("/", func(w http.ResponseWriter, r *http.Request) {
-			renderPage(w, starter)
-		})
-	}
+	// The dashboard root sends users straight to the main CRUD page.
+	mux.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, pages.Pegawai.Route, http.StatusFound)
+	})
 
 	if pegawai != nil {
 		mux.Get(pages.Pegawai.Route, pegawai.Index)

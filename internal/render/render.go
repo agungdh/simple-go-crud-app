@@ -47,9 +47,7 @@ func (r *Renderer) funcs() template.FuncMap {
 func (r *Renderer) partials() []string {
 	names := []string{
 		"header.html",
-		"header-starter.html",
 		"sidebar.html",
-		"sidebar-starter.html",
 		"footer.html",
 	}
 	out := make([]string, 0, len(names))

@@ -15,7 +15,7 @@
   <!-- Theme style -->
   <link rel="stylesheet" href="/dist/css/AdminLTE.min.css">
   <!-- AdminLTE Skins. -->
-  <link rel="stylesheet" href="{{if eq .Sidebar "starter"}}/dist/css/skins/skin-blue.min.css{{else}}/dist/css/skins/_all-skins.min.css{{end}}">
+  <link rel="stylesheet" href="/dist/css/skins/_all-skins.min.css">
 {{block "page-css" .}}{{end}}
 
   <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
@@ -31,7 +31,7 @@
 <body class="{{.BodyClass}}">
 <div class="wrapper">
 
-{{if eq .Sidebar "starter"}}{{template "header-starter" .}}{{template "sidebar-starter" .}}{{else}}{{template "header" .}}{{template "sidebar" .}}{{end}}
+{{template "header" .}}{{template "sidebar" .}}
 {{block "content" .}}{{end}}
 {{template "footer" .}}
 </div>

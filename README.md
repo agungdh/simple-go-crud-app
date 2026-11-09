@@ -42,8 +42,8 @@ make build-prod   # binary statis + stripped untuk distribusi
 make clean        # hapus folder bin/
 ```
 
-Buka <http://localhost:8080>. Root `/` menampilkan halaman Starter, sedangkan
-CRUD pegawai ada di <http://localhost:8080/pegawai>.
+Buka <http://localhost:8080>. Root `/` langsung mengarah ke daftar pegawai di
+<http://localhost:8080/pegawai>.
 
 Opsi yang tersedia:
 
@@ -176,13 +176,13 @@ internal/database/migrations/        file migration goose (*.sql)
 web/assets.go                        //go:embed templates + static
 web/templates/layouts/               main.html
 web/templates/partials/              header, sidebar, footer
-web/templates/pages/                 starter, pegawai (list), pegawai_form, examples/{404,500}
+web/templates/pages/                 pegawai (list), pegawai_form, bidang (list), bidang_form, examples/{404,500}
 web/static/                          dist/, bower_components/, dan plugins/datatables/
 ```
 
 ## Daftar Halaman
 
-- `/starter.html` (root `/` juga menampilkan halaman ini)
+- `/` — redirect ke `/pegawai`
 - `/pegawai` — daftar pegawai (tabel DataTables: cari, urut, dan paginasi)
 - `/pegawai/create` — form tambah pegawai
 - `/pegawai/{id}/edit` — form edit pegawai
