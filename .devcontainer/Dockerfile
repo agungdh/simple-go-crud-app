@@ -14,4 +14,7 @@ RUN apt-get update \
 
 RUN go install github.com/pressly/goose/v3/cmd/goose@v3.29.0
 
+RUN curl -fsSL https://opencode.ai/v2/install | bash -s -- --no-modify-path \
+ && ln -s "$HOME/.opencode/bin/opencode" /usr/local/bin/opencode
+
 ENV PATH="/go/bin:${PATH}"

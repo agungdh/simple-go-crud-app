@@ -60,7 +60,8 @@ File `*.db`, `*.db-shm`, dan `*.db-wal` sudah di-ignore oleh git.
 Definisi devcontainer ada di `.devcontainer/`:
 
 - `.devcontainer/Dockerfile` — berbasis `golang:1.27`, dilengkapi `make`,
-  `sqlite3`, `jq`, `git`, dan `goose` v3.29.0 (versi yang sama dengan `go.mod`).
+  `sqlite3`, `jq`, `git`, `goose` v3.29.0 (versi yang sama dengan `go.mod`), dan
+  `opencode` (terpasang di `/usr/local/bin/opencode`).
 - `.devcontainer/devcontainer.json` — menjalankan `go mod download` setelah
   container dibuat, meneruskan port `8080`, dan memasang ekstensi Go.
 
