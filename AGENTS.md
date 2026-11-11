@@ -73,11 +73,94 @@ Selalu jalankan `gofmt`, `go vet ./...`, dan `go test ./...` sebelum selesai.
 - Gunakan mode WAL dan `busy_timeout` untuk menghindari `database is locked`.
 - SQLite hanya punya satu penulis; jaga pool koneksi tetap kecil dan
   serialisasi penulisan. Jangan menaikkan pool tanpa alasan jelas.
-- Simpan waktu dalam UTC dan isi `created_at`/`updated_at` otomatis.
-- Index hanya untuk FK dan constraint unik; jangan menambah index untuk kolom
-  pencarian.
+- Simpan waktu sebagai **epoch milliseconds UTC** (`time.Now().UTC().UnixMilli()`),
+  bukan `TEXT`/`datetime`.
 - Pelanggaran `UNIQUE` dan `FOREIGN KEY` dipetakan ke error domain (HTTP `409`),
   bukan `500`.
+
+#### Primary key
+
+- Setiap tabel punya `id` dengan DDL **`INTEGER PRIMARY KEY AUTOINCREMENT`**.
+  Di SQLite, `INTEGER` adalah integer 64-bit (setara `BIGINT`) dan satu-satunya
+  tipe yang menjadi alias rowid. Jangan menulis `BIGINT PRIMARY KEY` karena
+  tidak akan autoincrement.
+- Di Go, `id` dipetakan ke `int64`.
+
+#### Kolom audit
+
+Setiap tabel **wajib** punya kolom audit berikut:
+
+| Kolom | Tipe | Nullable | Default |
+| --- | --- | --- | --- |
+| `created_at` | `INTEGER` (epoch ms) | ya | tidak |
+| `created_by` | `BIGINT` | ya | tidak |
+| `updated_at` | `INTEGER` (epoch ms) | ya | tidak |
+| `updated_by` | `BIGINT` | ya | tidak |
+| `deleted_at` | `INTEGER` (epoch ms) | ya | tidak |
+| `deleted_by` | `BIGINT` | ya | tidak |
+
+- Semua kolom audit **nullable** dan **tanpa `DEFAULT`**; nilai diisi aplikasi,
+  bukan database.
+- `*_by` bertipe `BIGINT` (`int64`), mengikuti tipe `id`, dan **bukan FK** —
+  jangan menambahkan `REFERENCES` pada kolom audit.
+- **Jangan expose kolom audit ke FE/API.** Kolom audit tidak boleh muncul di
+  response JSON maupun diterima dari request body. Pakai `json:"-"` pada field
+  audit di model, atau map ke DTO response yang hanya berisi field publik.
+- Kolom audit tetap dipakai internal (filter soft delete, pengisian otomatis).
+- Saat insert: isi `created_at` dan `created_by`; kolom `updated_*`/`deleted_*`
+  tetap `NULL`.
+- Saat update: isi `updated_at` dan `updated_by`.
+- Soft delete: isi `deleted_at` dan `deleted_by`; **jangan** `DELETE` fisik.
+- Query baca default wajib menambahkan `WHERE deleted_at IS NULL`.
+- Di model Bun, kolom nullable dipetakan ke pointer (`*int64`), bukan
+  `time.Time`.
+
+#### Foreign key
+
+- Semua FK wajib eksplisit: **`ON UPDATE RESTRICT ON DELETE RESTRICT`**.
+- Kolom FK bertipe `BIGINT` (`int64`).
+- Aktifkan `PRAGMA foreign_keys = ON`; tanpa ini FK tidak ditegakkan SQLite.
+- Hard delete parent yang masih direferensikan akan gagal; petakan ke error
+  domain (HTTP `409`), bukan `500`.
+- Beri index pada kolom FK.
+
+#### Unique constraint (soft delete)
+
+Karena memakai soft delete, unique constraint **wajib** berupa **partial unique
+index** dengan kondisi `deleted_at IS NULL`. Jangan memakai `UNIQUE` inline di
+kolom, karena baris yang sudah di-soft-delete akan tetap bentrok.
+
+```sql
+CREATE UNIQUE INDEX ux_items_kode_active
+    ON items (kode)
+    WHERE deleted_at IS NULL;
+```
+
+Index biasa hanya untuk FK dan partial unique di atas. Jangan membuat index
+untuk kolom pencarian.
+
+Contoh DDL tabel:
+
+```sql
+CREATE TABLE items (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    bidang_id  BIGINT NOT NULL
+               REFERENCES bidang(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+    kode       TEXT NOT NULL,
+    created_at INTEGER,
+    created_by BIGINT,
+    updated_at INTEGER,
+    updated_by BIGINT,
+    deleted_at INTEGER,
+    deleted_by BIGINT
+);
+
+CREATE INDEX idx_items_bidang_id ON items (bidang_id);
+
+CREATE UNIQUE INDEX ux_items_kode_active
+    ON items (kode)
+    WHERE deleted_at IS NULL;
+```
 
 ### Migration (goose)
 
@@ -95,6 +178,8 @@ Selalu jalankan `gofmt`, `go vet ./...`, dan `go test ./...` sebelum selesai.
 - Response sukses: `{"data": ...}`.
 - Response error: `{"error": "pesan"}` dengan status HTTP yang sesuai
   (`400`, `401`, `403`, `404`, `409`, `422`, `500`).
+- Jangan expose kolom audit (`created_*`, `updated_*`, `deleted_*`) di response
+  maupun request. Gunakan DTO terpisah atau `json:"-"`.
 - Jangan bocorkan detail error internal ke klien; log di server.
 - Batasi ukuran body request.
 
