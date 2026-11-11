@@ -1,10 +1,22 @@
 package model
 
 import (
+	"reflect"
 	"time"
 
 	"github.com/uptrace/bun"
 )
+
+// auditColumnNames are the columns that must never be selected by default or
+// exposed to the frontend.
+var auditColumnNames = map[string]struct{}{
+	"created_at": {},
+	"created_by": {},
+	"updated_at": {},
+	"updated_by": {},
+	"deleted_at": {},
+	"deleted_by": {},
+}
 
 // Base is embedded by every entity. It provides the primary key and audit
 // columns. Audit columns are intentionally hidden from JSON: they are internal
@@ -70,4 +82,33 @@ func (b *Base) IsDeleted() bool {
 // For joins, each joined table that has soft deletes must be filtered too.
 func Active(q *bun.SelectQuery) *bun.SelectQuery {
 	return q.Where("?TableAlias.deleted_at IS NULL")
+}
+
+// PublicColumns returns every column of the given model except the audit
+// columns. Use it with SelectQuery.Column to avoid SELECT *:
+//
+//	q := db.NewSelect().Model(&items)
+//	q = q.Column(model.PublicColumns(db, (*Item)(nil))...)
+//	q = model.Active(q)
+//
+// Select only the columns actually needed by the response. Audit columns are
+// excluded because they are internal and must not be exposed.
+func PublicColumns(db *bun.DB, model any) []string {
+	typ := reflect.TypeOf(model)
+	for typ != nil && typ.Kind() == reflect.Pointer {
+		typ = typ.Elem()
+	}
+	if typ == nil {
+		return nil
+	}
+
+	table := db.Table(typ)
+	columns := make([]string, 0, len(table.Fields))
+	for _, field := range table.Fields {
+		if _, audited := auditColumnNames[field.Name]; audited {
+			continue
+		}
+		columns = append(columns, field.Name)
+	}
+	return columns
 }

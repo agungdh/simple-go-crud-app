@@ -78,6 +78,25 @@ Selalu jalankan `gofmt`, `go vet ./...`, dan `go test ./...` sebelum selesai.
 - Pelanggaran `UNIQUE` dan `FOREIGN KEY` dipetakan ke error domain (HTTP `409`),
   bukan `500`.
 
+#### Select kolom
+
+- **Jangan `SELECT *`.** Selalu pilih kolom eksplisit dengan `.Column(...)`.
+- Default: semua kolom publishable (semua kecuali audit) lewat
+  `model.PublicColumns(db, (*Entity)(nil))`.
+- Pilih hanya kolom yang benar-benar dipakai response; jangan ikutkan kolom
+  audit.
+- Untuk JOIN atau query tabel langsung, tulis kolom eksplisit dengan prefix
+  alias (`p.id`, `p.nama`, dst.).
+- Kolom audit tetap boleh dipakai di klausa `WHERE` (mis. `deleted_at IS NULL`)
+  meskipun tidak di-`SELECT`.
+
+```go
+q := db.NewSelect().
+    Model(&items).
+    Column(model.PublicColumns(db, (*Item)(nil))...)
+q = model.Active(q)
+```
+
 #### Primary key
 
 - Setiap tabel punya `id` dengan DDL **`INTEGER PRIMARY KEY AUTOINCREMENT`**.
