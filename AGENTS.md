@@ -11,9 +11,13 @@ tanpa alasan kuat.
 
 - Bahasa: **Go**
 - Router: **`github.com/go-chi/chi/v5`**
-- Database: **SQLite3** (satu-satunya database)
+- Database: **SQLite3** (satu-satunya database), driver **`modernc.org/sqlite`** (pure Go, tanpa CGO)
 - ORM: **`github.com/uptrace/bun`** + **`bun/dialect/sqlitedialect`**
 - Migration: **`github.com/pressly/goose/v3`**
+
+Buka koneksi dengan `sql.Open("sqlite", dsn)`. Jangan memakai
+`bun/driver/sqliteshim` atau `github.com/mattn/go-sqlite3`; keduanya menambah
+ketergantungan yang tidak perlu dan `mattn` butuh CGO.
 
 ## Perintah
 
