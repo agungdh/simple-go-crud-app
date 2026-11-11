@@ -107,6 +107,16 @@ Setiap tabel **wajib** punya kolom audit berikut:
   response JSON maupun diterima dari request body. Pakai `json:"-"` pada field
   audit di model, atau map ke DTO response yang hanya berisi field publik.
 - Kolom audit tetap dipakai internal (filter soft delete, pengisian otomatis).
+- Semua entity **wajib embed `model.Base`** (`internal/model/base.go`); jangan
+  mendeklarasikan ulang `id` atau kolom audit.
+- Isi audit lewat `MarkCreated(actorID)`, `MarkUpdated(actorID)`, dan
+  `MarkDeleted(actorID)`. Jangan mengisi manual.
+- Filter baca wajib memakai `model.Active(q)`; untuk query JOIN, filter juga
+  tabel yang di-join (`p.deleted_at IS NULL`, `b.deleted_at IS NULL`, dst.).
+- Jangan memakai tag `bun:",soft_delete"` bawaan Bun: implementasinya menyimpan
+  `UnixNano`, bukan epoch milliseconds.
+- Jangan memanggil `db.NewDelete()` untuk soft delete. Lakukan `UPDATE` yang
+  mengisi `deleted_at`/`deleted_by` lewat `MarkDeleted`.
 - Saat insert: isi `created_at` dan `created_by`; kolom `updated_*`/`deleted_*`
   tetap `NULL`.
 - Saat update: isi `updated_at` dan `updated_by`.
