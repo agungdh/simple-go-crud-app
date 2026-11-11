@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"io/fs"
+	"os"
+	"path/filepath"
 
 	"github.com/pressly/goose/v3"
 	"github.com/uptrace/bun"
@@ -15,6 +17,12 @@ import (
 // Open opens the SQLite database with the pragmas required by the project and
 // wraps it in a Bun DB.
 func Open(path string) (*bun.DB, error) {
+	if dir := filepath.Dir(path); dir != "." {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return nil, fmt.Errorf("create database directory: %w", err)
+		}
+	}
+
 	dsn := fmt.Sprintf(
 		"file:%s?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)",
 		path,

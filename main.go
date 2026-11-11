@@ -23,7 +23,7 @@ var migrationsFS embed.FS
 
 func main() {
 	addr := envOr("ADDR", ":8080")
-	dbPath := envOr("DB_PATH", "app.db")
+	dbPath := envOr("DB_PATH", "persistence/db/app.db")
 
 	ctx := context.Background()
 

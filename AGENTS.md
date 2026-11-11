@@ -31,7 +31,7 @@ goose up                  # jalankan migration
 goose down                # rollback satu migration
 goose status              # cek status migration
 goose create <nama> sql   # buat file migration baru
-goose -dir migrations sqlite3 app.db up   # jalankan tanpa config
+goose -dir migrations sqlite3 persistence/db/app.db up   # jalankan tanpa config
 ```
 
 Selalu jalankan `gofmt`, `go vet ./...`, dan `go test ./...` sebelum selesai.
