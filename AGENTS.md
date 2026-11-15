@@ -20,7 +20,7 @@ Panduan untuk agent yang bekerja di repo ini.
 | Query | **Jangan `SELECT *`**; pakai `Column(model.PublicColumns(...)...)` |
 | Cari | `search_text` (VIRTUAL) + FTS5 trigram `<tabel>_fts`; `?q=` wajib ≥3 karakter (kurang → `422`) |
 | FK | `ON UPDATE RESTRICT ON DELETE RESTRICT`, tipe `BIGINT`, beri index |
-| Error | Unique/FK → `409`; format `{"data": ...}` / `{"error": "..."}`; detail internal jangan dibocorkan |
+| Error | Hanya `401`, `403`, `404`, `422`, `500`; validasi → `422`, error pasca-validasi → `500`; format `{"data": ...}` / `{"error": "..."}` |
 | Test | DB sementara; tiap endpoint: happy path + error |
 | Jangan commit | `*.db*`, `bin/`, `.env`, file IDE |
 
@@ -166,8 +166,9 @@ Bagian ini berlaku saat `handler`, `service`, dan `router` dibangun lagi.
 - Kolom tanggal/waktu **bisnis** (mis. `tanggal_lahir`, `jadwal`) disimpan
   sebagai **`TEXT` ISO-8601**: `YYYY-MM-DD` untuk tanggal, `YYYY-MM-DDTHH:MM:SSZ`
   untuk waktu. Jangan memakai epoch milliseconds di luar kolom audit.
-- Pelanggaran `UNIQUE` dan `FOREIGN KEY` dipetakan ke error domain (HTTP `409`),
-  bukan `500`.
+- Pelanggaran `UNIQUE` dan `FOREIGN KEY` adalah error pasca-validasi; biarkan
+  menjadi `500` (tetap dibungkus error domain agar jelas saat dilog), bukan
+  `409`.
 
 #### Select kolom
 
@@ -240,8 +241,8 @@ Setiap tabel **wajib** punya kolom audit berikut:
 - Semua FK wajib eksplisit: **`ON UPDATE RESTRICT ON DELETE RESTRICT`**.
 - Kolom FK bertipe `BIGINT` (`int64`).
 - Aktifkan `PRAGMA foreign_keys = ON`; tanpa ini FK tidak ditegakkan SQLite.
-- Hard delete parent yang masih direferensikan akan gagal; petakan ke error
-  domain (HTTP `409`), bukan `500`.
+- Hard delete parent yang masih direferensikan akan gagal; itu error
+  pasca-validasi, jadi dibalas `500`.
 - Beri index pada kolom FK.
 
 #### Unique constraint (soft delete)
@@ -347,8 +348,17 @@ Layer HTTP belum ada; kontrak dan DTO sudah (lihat subbagian berikut). Aturan
 di bawah ini yang nanti dipegang handler.
 
 - Response sukses: `{"data": ...}`.
-- Response error: `{"error": "pesan"}` dengan status HTTP yang sesuai
-  (`400`, `401`, `403`, `404`, `409`, `422`, `500`).
+- Response error: `{"error": "pesan"}`. Status yang boleh dipakai hanya
+  `401`, `403`, `404`, `422`, dan `500`; `401`/`403` menyusul saat
+  autentikasi/otorisasi ditambahkan.
+- Validasi **selalu** `422`, termasuk request yang tidak terbaca: JSON rusak,
+  lebih dari satu objek, tipe field salah, field tidak dikenal, body > 1 MiB,
+  `id` bukan bilangan bulat positif, field wajib kosong, kepanjangan, tanggal
+  tidak valid, dan `q` terlalu pendek/panjang.
+- Setelah validasi lolos, kegagalan apa pun (unique/NIP duplikat, foreign key,
+  error database) dibalas `500`. Jangan menambah status baru untuk itu.
+- `404` hanya untuk `GET`/`PUT`/`DELETE` by id saat data tidak ada atau sudah
+  dihapus (soft delete). Endpoint koleksi tidak memakai `404`.
 - Jangan expose kolom audit (`created_*`, `updated_*`, `deleted_*`) di response
   maupun request. Gunakan DTO terpisah atau `json:"-"`.
 - Jangan bocorkan detail error internal ke klien; log di server.
@@ -377,12 +387,11 @@ di bawah ini yang nanti dipegang handler.
   <http://127.0.0.1:8082>.
 - Perubahan kontrak yang mengubah bentuk response = perubahan breaking untuk
   FE; naikkan `info.version` dan catat di deskripsi operasi terkait.
-- Kontrak wajib mendokumentasikan: envelope `data`/`error`, status `400`,
-  `404`, `409`, `413`, `422`, `500` yang benar-benar dipakai endpoint, dan
+- Kontrak wajib mendokumentasikan: envelope `data`/`error`, status yang
+  benar-benar dipakai endpoint (hanya `401`, `403`, `404`, `422`, `500`), dan
   larangan mengekspos kolom audit/internal.
-- Perbedaan status yang disengaja: pelanggaran aturan bisnis = `422`;
-  request tak terbaca (JSON rusak, tipe salah, field asing, `id` invalid) =
-  `400`; body > 1 MiB = `413`.
+- Kontrak tidak boleh memuat status `400`, `409`, atau `413`; semuanya
+  dipetakan ke aturan di atas.
 - Tanggal di kontrak memakai `pattern`, bukan `format: date`, karena DTO
   memakai `DD-MM-YYYY`; request menerima dua format.
 

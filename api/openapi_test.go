@@ -1,6 +1,8 @@
 package api
 
 import (
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -53,6 +55,47 @@ func TestOpenAPIContract(t *testing.T) {
 	for key := range got {
 		if _, ok := want[key]; !ok {
 			t.Errorf("%s: endpoint tidak ada di kontrak yang disepakati", key)
+		}
+	}
+}
+
+func TestOpenAPIStatusCodes(t *testing.T) {
+	loader := openapi3.NewLoader()
+	doc, err := loader.LoadFromFile("openapi.yaml")
+	if err != nil {
+		t.Fatalf("load spec: %v", err)
+	}
+
+	allowed := map[int]bool{
+		200: true, 201: true, 204: true,
+		401: true, 403: true,
+		404: true, 422: true, 500: true,
+	}
+
+	for path, item := range doc.Paths.Map() {
+		for method, op := range item.Operations() {
+			key := method + " " + path
+			codes := make(map[int]bool)
+			for code := range op.Responses.Map() {
+				n, err := strconv.Atoi(code)
+				if err != nil {
+					t.Errorf("%s: status %q bukan angka", key, code)
+					continue
+				}
+				if !allowed[n] {
+					t.Errorf("%s: status %d tidak diizinkan oleh kontrak", key, n)
+				}
+				codes[n] = true
+			}
+
+			// 404 hanya untuk operasi by id.
+			byID := strings.Contains(path, "{id}")
+			if byID && !codes[404] {
+				t.Errorf("%s: operasi by id wajib mendokumentasikan 404", key)
+			}
+			if !byID && codes[404] {
+				t.Errorf("%s: 404 hanya boleh dipakai operasi by id", key)
+			}
 		}
 	}
 }

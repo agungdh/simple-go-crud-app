@@ -13,10 +13,17 @@ info:
     - Kolom audit (`created_*`, `updated_*`, `deleted_*`) dan kolom internal
       (`search_text`, `is_male`) tidak pernah muncul di request maupun response.
     - Pencarian memakai `?q=` dengan trigram: minimal 3 karakter, maksimal 100.
-      Pelanggaran aturan bisnis dibalas `422`, bukan `400`.
-    - `400` khusus untuk request yang tidak bisa dibaca: JSON rusak, tipe salah,
-      field tidak dikenal, atau `id` bukan bilangan bulat positif.
-    - `413` untuk body melebihi 1 MiB.
+    - Status yang dipakai hanya `401`, `403`, `404`, `422`, dan `500`.
+      `401`/`403` menyusul saat autentikasi/otorisasi ditambahkan.
+    - Validasi apa pun dibalas `422`: JSON tidak terbaca, tipe salah, field
+      tidak dikenal, body melebihi 1 MiB, `id` bukan bilangan bulat positif,
+      field wajib kosong, panjang melebihi batas, tanggal tidak valid, `q`
+      terlalu pendek, dan sebagainya.
+    - Validasi lolos tapi operasi tetap gagal (mis. unique/NIP duplikat,
+      foreign key, error database) dibalas `500`; detail internal tidak
+      dibocorkan.
+    - `404` khusus untuk `GET`/`PUT`/`DELETE` by id saat data tidak ada atau
+      sudah dihapus (soft delete).
     - Tanggal bisnis dikirim sebagai `DD-MM-YYYY` pada response; request menerima
       `DD-MM-YYYY` maupun `YYYY-MM-DD`.
     - `DELETE` adalah soft delete dan membalas `204` tanpa body.
@@ -64,9 +71,9 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/BidangResponse' }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '409': { $ref: '#/components/responses/Conflict' }
-        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+
+
+
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
@@ -83,7 +90,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/BidangResponse' }
-        '400': { $ref: '#/components/responses/BadRequest' }
+
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
     put:
@@ -101,10 +108,10 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/BidangResponse' }
-        '400': { $ref: '#/components/responses/BadRequest' }
+
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/Conflict' }
-        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+
+
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
     delete:
@@ -114,7 +121,7 @@ paths:
       responses:
         '204':
           description: Bidang dihapus
-        '400': { $ref: '#/components/responses/BadRequest' }
+
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
@@ -148,9 +155,9 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/PegawaiResponse' }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '409': { $ref: '#/components/responses/Conflict' }
-        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+
+
+
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
@@ -167,7 +174,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/PegawaiResponse' }
-        '400': { $ref: '#/components/responses/BadRequest' }
+
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
     put:
@@ -185,10 +192,10 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/PegawaiResponse' }
-        '400': { $ref: '#/components/responses/BadRequest' }
+
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/Conflict' }
-        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+
+
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
     delete:
@@ -198,7 +205,7 @@ paths:
       responses:
         '204':
           description: Pegawai dihapus
-        '400': { $ref: '#/components/responses/BadRequest' }
+
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
@@ -219,7 +226,9 @@ components:
       name: id
       in: path
       required: true
-      description: ID numerik (`INTEGER PRIMARY KEY AUTOINCREMENT`).
+      description: |
+        ID numerik (`INTEGER PRIMARY KEY AUTOINCREMENT`). Nilai yang bukan
+        bilangan bulat positif dibalas `422`.
       schema:
         type: integer
         format: int64
@@ -227,39 +236,26 @@ components:
         examples: [1]
 
   responses:
-    BadRequest:
-      description: |
-        Request tidak bisa dibaca: JSON rusak, lebih dari satu objek, tipe field
-        salah, field tidak dikenal, atau `id` tidak valid.
-      content:
-        application/json:
-          schema: { $ref: '#/components/schemas/ErrorResponse' }
     NotFound:
-      description: Data tidak ditemukan atau sudah dihapus (soft delete).
-      content:
-        application/json:
-          schema: { $ref: '#/components/schemas/ErrorResponse' }
-    Conflict:
       description: |
-        Melanggar unique index aktif atau foreign key `bidang_id`; misalnya
-        nama bidang duplikat, NIP duplikat, atau bidang tidak ada.
-      content:
-        application/json:
-          schema: { $ref: '#/components/schemas/ErrorResponse' }
-    PayloadTooLarge:
-      description: Body melebihi 1 MiB.
+        Data tidak ada atau sudah dihapus (soft delete). Hanya dipakai operasi
+        by id: `GET`, `PUT`, dan `DELETE`.
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
     UnprocessableEntity:
       description: |
-        Input terbaca tapi melanggar aturan bisnis (mis. field wajib kosong,
-        melebihi panjang maksimum, tanggal tidak valid, atau `q` terlalu pendek).
+        Validasi gagal. Mencakup request yang tidak terbaca (JSON rusak, lebih
+        dari satu objek, tipe field salah, field tidak dikenal, body > 1 MiB,
+        `id` tidak valid) maupun pelanggaran aturan bisnis (field wajib kosong,
+        melebihi panjang maksimum, tanggal tidak valid, `q` terlalu pendek).
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
     InternalServerError:
-      description: Kesalahan internal. Detail tidak dibocorkan ke klien.
+      description: |
+        Validasi lolos tetapi operasi tetap gagal, mis. unique/NIP duplikat,
+        foreign key, atau error database. Detail internal tidak dibocorkan.
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -383,7 +379,9 @@ components:
           type: integer
           format: int64
           minimum: 1
-          description: Harus merujuk bidang aktif; bila tidak ada dibalas `409`.
+          description: |
+            Harus merujuk bidang aktif. Bila insert gagal karena bidang tidak
+            ada, itu error pasca-validasi dan dibalas `500`.
         nama:
           type: string
           minLength: 1
