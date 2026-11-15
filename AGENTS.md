@@ -8,7 +8,7 @@ Panduan untuk agent yang bekerja di repo ini.
 | --- | --- |
 | Stack | Go + chi + Bun + SQLite (`modernc.org/sqlite`) + goose. Jangan ganti. |
 | Cek cepat | `make help` (daftar target), `make run`, `make check` (wajib sebelum selesai) |
-| DB | `persistence/db/app.db`, WAL, `busy_timeout`, `foreign_keys=ON`, pool kecil |
+| DB | `persistence/db/app.db`, WAL, `synchronous=NORMAL`, `busy_timeout`, `foreign_keys=ON`, pool kecil |
 | Migration | `make migrate-create NAME=nama` → isi Up/Down → `make migrate-up` |
 | Layer | `main.go` wiring; `internal/` handler → service → repository → model; tidak campur |
 | ID | `INTEGER PRIMARY KEY AUTOINCREMENT`, di Go `int64` |
@@ -126,9 +126,15 @@ Selalu jalankan `make check` (fmt, vet, test) sebelum selesai.
 - Pakai `context` pada setiap query.
 - Tangani `sql.ErrNoRows` sebagai not-found di layer repository.
 - Aktifkan `PRAGMA foreign_keys = ON` di setiap koneksi.
-- Gunakan mode WAL dan `busy_timeout` untuk menghindari `database is locked`.
-- SQLite hanya punya satu penulis; jaga pool koneksi tetap kecil dan
-  serialisasi penulisan. Jangan menaikkan pool tanpa alasan jelas.
+- Gunakan `PRAGMA journal_mode = WAL` dan `busy_timeout` untuk menghindari
+  `database is locked`.
+- Gunakan `PRAGMA synchronous = NORMAL`; dengan WAL ini tetap aman terhadap
+  korupsi, hanya transaksi terakhir yang bisa hilang saat listrik mati.
+- Pragmas dipasang lewat DSN agar berlaku di **setiap** koneksi pool, bukan
+  hanya koneksi pertama.
+- SQLite hanya punya satu penulis, tapi WAL mengizinkan pembaca berjalan
+  bersamaan. Jangan pin pool ke 1 koneksi; pakai pool kecil dan biarkan
+  `busy_timeout` yang menangani penulis yang menunggu.
 - **Hanya kolom audit** `*_at` yang menyimpan **epoch milliseconds UTC**
   (`time.Now().UTC().UnixMilli()`), bukan `TEXT`.
 - Kolom tanggal/waktu **bisnis** (mis. `tanggal_lahir`, `jadwal`) disimpan

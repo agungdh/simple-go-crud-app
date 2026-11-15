@@ -14,8 +14,22 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+const (
+	// busyTimeoutMS is how long a connection waits for a lock held by another
+	// connection before SQLite returns SQLITE_BUSY.
+	busyTimeoutMS = 5000
+	// maxOpenConns allows concurrent readers under WAL. Writes are still
+	// serialized by SQLite, so the pool only needs to stay small.
+	maxOpenConns = 10
+)
+
 // Open opens the SQLite database with the pragmas required by the project and
 // wraps it in a Bun DB.
+//
+// The pragmas are passed through the DSN so that every pooled connection gets
+// them, not just the first one. WAL plus synchronous=NORMAL keeps commits cheap
+// while remaining crash-safe (a power loss can lose the last transactions, but
+// the database is not corrupted).
 func Open(path string) (*bun.DB, error) {
 	if dir := filepath.Dir(path); dir != "." {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -24,8 +38,8 @@ func Open(path string) (*bun.DB, error) {
 	}
 
 	dsn := fmt.Sprintf(
-		"file:%s?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)",
-		path,
+		"file:%s?_pragma=foreign_keys(1)&_pragma=busy_timeout(%d)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)",
+		path, busyTimeoutMS,
 	)
 
 	sqlDB, err := sql.Open("sqlite", dsn)
@@ -33,10 +47,11 @@ func Open(path string) (*bun.DB, error) {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
 
-	// SQLite has a single writer; keep the pool small to avoid
-	// "database is locked" errors.
-	sqlDB.SetMaxOpenConns(1)
-	sqlDB.SetMaxIdleConns(1)
+	// SQLite has a single writer, but WAL lets readers run alongside it, so the
+	// pool does not need to be pinned to one connection. busy_timeout makes a
+	// waiting writer retry instead of failing with "database is locked".
+	sqlDB.SetMaxOpenConns(maxOpenConns)
+	sqlDB.SetMaxIdleConns(maxOpenConns)
 
 	if err := sqlDB.Ping(); err != nil {
 		_ = sqlDB.Close()
