@@ -57,6 +57,7 @@ melihat daftar target.
 | `make fmt-check` | `gofmt -l .` (harus kosong) | Cek format tanpa mengubah file |
 | `make tidy` | `go mod tidy` | Rapikan `go.mod` dan `go.sum` |
 | `make api-validate` | `go test ./api ./internal/dto` | Validasi kontrak + kecocokan DTO |
+| `make docs` | `npx @redocly/cli preview-docs api/openapi.yaml -p 8082` | Preview dokumentasi di <http://127.0.0.1:8082> (butuh Node.js) |
 | `make check` | `make fmt-check vet test` | Format, vet, dan test sekaligus |
 | `make clean` | `rm -rf bin` | Hapus hasil build |
 
@@ -88,6 +89,7 @@ lewat `go run`, jadi tidak perlu install goose. Override bila perlu, mis.
 | `DB_PATH` | `persistence/db/app.db` | `make run`, target migration |
 | `NAME` | — (wajib) | `make migrate-create` |
 | `GOOSE` | `go run -tags '<GOOSE_TAGS>' github.com/pressly/goose/v3/cmd/goose@v3.30.0` | Target migration |
+| `DOCS_PORT` | `8082` | `make docs` |
 
 Selalu jalankan `make check` (fmt, vet, test) sebelum selesai.
 
