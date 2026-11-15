@@ -343,6 +343,7 @@ func TestPegawaiSearch(t *testing.T) {
 	second := validPayload()
 	second["nama"] = "Siti Aminah"
 	second["nip"] = "199001012020011002"
+	second["tanggal_lahir"] = "1985-05-17"
 	second["alamat"] = "Jl. Melati No. 2, Bandung"
 	rec := doRequest(t, srv, http.MethodPost, "/pegawai", second)
 	if rec.Code != http.StatusCreated {
@@ -356,6 +357,8 @@ func TestPegawaiSearch(t *testing.T) {
 	}{
 		{name: "matches nama", query: "budi", want: 1},
 		{name: "matches partial alamat", query: "merdeka", want: 1},
+		{name: "matches tanggal lahir", query: "1985-05-17", want: 1},
+		{name: "matches partial tanggal lahir", query: "1985-05", want: 1},
 		{name: "case insensitive", query: "BUDI", want: 1},
 		{name: "short query fallback", query: "si", want: 1},
 		{name: "no match", query: "zzz", want: 0},

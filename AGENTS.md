@@ -12,7 +12,7 @@ Panduan untuk agent yang bekerja di repo ini.
 | Migration | `make migrate-create NAME=nama` → isi Up/Down → `make migrate-up` |
 | Layer | `main.go` wiring; `internal/` handler → service → repository → model; tidak campur |
 | ID | `INTEGER PRIMARY KEY AUTOINCREMENT`, di Go `int64` |
-| Waktu | Epoch **milliseconds UTC** (`time.Now().UTC().UnixMilli()`), bukan `TEXT` |
+| Waktu | Audit `*_at` = epoch **ms UTC**; tanggal/waktu bisnis = `TEXT` ISO-8601 (`YYYY-MM-DD`) |
 | Audit | Wajib `model.Base`; isi via `MarkCreated/MarkUpdated/MarkDeleted`; jangan expose ke API |
 | Soft delete | `model.Active(q)` + `UPDATE deleted_at/deleted_by`; unik = partial index `WHERE deleted_at IS NULL` |
 | Query | **Jangan `SELECT *`**; pakai `Column(model.PublicColumns(...)...)` |
@@ -129,8 +129,11 @@ Selalu jalankan `make check` (fmt, vet, test) sebelum selesai.
 - Gunakan mode WAL dan `busy_timeout` untuk menghindari `database is locked`.
 - SQLite hanya punya satu penulis; jaga pool koneksi tetap kecil dan
   serialisasi penulisan. Jangan menaikkan pool tanpa alasan jelas.
-- Simpan waktu sebagai **epoch milliseconds UTC** (`time.Now().UTC().UnixMilli()`),
-  bukan `TEXT`/`datetime`.
+- **Hanya kolom audit** `*_at` yang menyimpan **epoch milliseconds UTC**
+  (`time.Now().UTC().UnixMilli()`), bukan `TEXT`.
+- Kolom tanggal/waktu **bisnis** (mis. `tanggal_lahir`, `jadwal`) disimpan
+  sebagai **`TEXT` ISO-8601**: `YYYY-MM-DD` untuk tanggal, `YYYY-MM-DDTHH:MM:SSZ`
+  untuk waktu. Jangan memakai epoch milliseconds di luar kolom audit.
 - Pelanggaran `UNIQUE` dan `FOREIGN KEY` dipetakan ke error domain (HTTP `409`),
   bukan `500`.
 
@@ -287,8 +290,10 @@ CREATE VIRTUAL TABLE items_fts USING fts5(
 
 ### Migration (goose)
 
-- Semua perubahan skema lewat file migration baru; jangan mengubah migration
-  yang sudah pernah dijalankan.
+- Semua perubahan skema lewat file migration goose.
+- Selama masih **dev** dan belum rilis, migration boleh diedit langsung; hapus
+  database lokal (`persistence/db/app.db*`) lalu jalankan ulang. Setelah rilis,
+  jangan pernah mengubah migration yang sudah dijalankan — buat migration baru.
 - Format file: `<timestamp>_<nama>.sql` (hasil `goose create`).
 - Wajib punya blok `-- +goose Up` dan `-- +goose Down`.
 - Migration harus idempoten terhadap urutan eksekusi dari awal.

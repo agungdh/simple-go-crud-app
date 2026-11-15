@@ -123,24 +123,24 @@ func buildPegawai(in PegawaiInput) (*model.Pegawai, error) {
 	}, nil
 }
 
-func parseTanggalLahir(value string) (int64, error) {
+func parseTanggalLahir(value string) (string, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
-		return 0, apperr.Validation("tanggal_lahir wajib diisi")
+		return "", apperr.Validation("tanggal_lahir wajib diisi")
 	}
 
 	t, err := time.Parse(dateLayout, value)
 	if err != nil {
-		return 0, apperr.Validation("tanggal_lahir harus berformat YYYY-MM-DD")
+		return "", apperr.Validation("tanggal_lahir harus berformat YYYY-MM-DD")
 	}
 
 	now := time.Now().UTC()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 	if t.After(today) {
-		return 0, apperr.Validation("tanggal_lahir tidak boleh di masa depan")
+		return "", apperr.Validation("tanggal_lahir tidak boleh di masa depan")
 	}
 
-	return t.UnixMilli(), nil
+	return t.Format(dateLayout), nil
 }
 
 func normalizeJenisKelamin(value string) (string, error) {
@@ -152,9 +152,4 @@ func normalizeJenisKelamin(value string) (string, error) {
 	default:
 		return "", apperr.Validation("jenis_kelamin harus L atau P")
 	}
-}
-
-// FormatTanggalLahir converts stored epoch milliseconds to YYYY-MM-DD.
-func FormatTanggalLahir(ms int64) string {
-	return time.UnixMilli(ms).UTC().Format(dateLayout)
 }

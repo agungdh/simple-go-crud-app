@@ -3,7 +3,7 @@ CREATE TABLE pegawai (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     nama          TEXT NOT NULL,
     nip           TEXT NOT NULL,
-    tanggal_lahir INTEGER NOT NULL,
+    tanggal_lahir TEXT NOT NULL,
     alamat        TEXT NOT NULL,
     jenis_kelamin TEXT NOT NULL CHECK (jenis_kelamin IN ('L', 'P')),
     created_at    INTEGER,

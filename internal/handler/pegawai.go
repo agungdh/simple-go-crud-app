@@ -190,7 +190,7 @@ func toResponse(pegawai *model.Pegawai) pegawaiResponse {
 		ID:           pegawai.ID,
 		Nama:         pegawai.Nama,
 		NIP:          pegawai.NIP,
-		TanggalLahir: service.FormatTanggalLahir(pegawai.TanggalLahir),
+		TanggalLahir: pegawai.TanggalLahir,
 		Alamat:       pegawai.Alamat,
 		JenisKelamin: pegawai.JenisKelamin,
 	}

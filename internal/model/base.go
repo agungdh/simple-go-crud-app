@@ -22,8 +22,9 @@ var auditColumnNames = map[string]struct{}{
 // columns. Audit columns are intentionally hidden from JSON: they are internal
 // bookkeeping and must never be exposed to the frontend.
 //
-// Timestamps are stored as epoch milliseconds (UTC) and are nullable, with no
-// database default. Values are set by the application.
+// Timestamps in Base are audit columns, so they are stored as epoch
+// milliseconds (UTC) and are nullable, with no database default. Values are set
+// by the application. Business dates use TEXT instead.
 type Base struct {
 	ID int64 `bun:"id,pk,autoincrement" json:"id"`
 

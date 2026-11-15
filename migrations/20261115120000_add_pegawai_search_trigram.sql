@@ -7,7 +7,7 @@ ALTER TABLE pegawai ADD COLUMN search_text TEXT
     GENERATED ALWAYS AS (
         nama || ' ' ||
         nip || ' ' ||
-        CAST(tanggal_lahir AS TEXT) || ' ' ||
+        tanggal_lahir || ' ' ||
         alamat || ' ' ||
         jenis_kelamin
     ) VIRTUAL;
