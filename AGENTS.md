@@ -375,6 +375,13 @@ di bawah ini yang nanti dipegang handler.
 #### Kontrak API (contract-first)
 
 - `api/openapi.yaml` adalah **sumber kebenaran**. Ubah kontrak dulu, baru kode.
+- Spec hanya untuk konsumen (FE). Jangan tulis detail internal: nama
+  tabel/kolom, index, foreign key, soft delete, FTS/trigram, format
+  penyimpanan, atau penyebab error database. Cukup bentuk DTO, aturan validasi
+  yang bisa dicek client, dan status yang diterima.
+- Alasan error cukup di level yang berguna untuk client (`422` = input tidak
+  valid, `404` = data tidak ada, `500` = kesalahan server), bukan nama
+  constraint atau tabel.
 - Tidak ada codegen. DTO ditulis tangan di `internal/dto` dan wajib cocok
   dengan schema di kontrak; `make api-validate` memvalidasi kecocokannya.
 - Nama field JSON di DTO harus sama persis dengan kontrak. Untuk tipe yang
@@ -401,8 +408,9 @@ di bawah ini yang nanti dipegang handler.
 - Setiap endpoint baru punya test happy path + kasus error (setelah layer HTTP
   di-wire).
 - Test tidak boleh bergantung pada state global atau urutan eksekusi.
-- Test kontrak: `api/openapi_test.go` memvalidasi spec dan melarang kolom
-  internal muncul di schema.
+- Test kontrak: `api/openapi_test.go` memvalidasi spec, membatasi status yang
+  boleh dipakai, dan menolak detail internal (nama kolom, index, storage)
+  muncul di spec.
 - Test DTO: `internal/dto/dto_test.go` memvalidasi payload DTO terhadap schema
   kontrak, jadi rename field JSON tanpa update kontrak langsung gagal.
 - Saat menambah DTO baru, tambahkan juga test kecocokannya.

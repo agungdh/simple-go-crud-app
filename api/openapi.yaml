@@ -6,27 +6,23 @@ info:
   description: |
     Kontrak API untuk entitas `bidang` dan `pegawai`.
 
-    Konvensi yang mengikat implementasi:
+    Dokumen ini hanya memuat hal yang dibutuhkan konsumen: bentuk request dan
+    response, aturan validasi, serta status yang mungkin diterima.
 
     - Response sukses selalu dibungkus `{"data": ...}`.
-    - Response error selalu `{"error": "pesan"}` dan pesannya aman ditampilkan.
-    - Kolom audit (`created_*`, `updated_*`, `deleted_*`) dan kolom internal
-      (`search_text`, `is_male`) tidak pernah muncul di request maupun response.
-    - Pencarian memakai `?q=` dengan trigram: minimal 3 karakter, maksimal 100.
+    - Response error selalu `{"error": "pesan"}` dan pesannya aman ditampilkan
+      ke pengguna.
     - Status yang dipakai hanya `401`, `403`, `404`, `422`, dan `500`.
       `401`/`403` menyusul saat autentikasi/otorisasi ditambahkan.
-    - Validasi apa pun dibalas `422`: JSON tidak terbaca, tipe salah, field
+    - `422` berarti input tidak valid: JSON tidak terbaca, tipe salah, field
       tidak dikenal, body melebihi 1 MiB, `id` bukan bilangan bulat positif,
-      field wajib kosong, panjang melebihi batas, tanggal tidak valid, `q`
-      terlalu pendek, dan sebagainya.
-    - Validasi lolos tapi operasi tetap gagal (mis. unique/NIP duplikat,
-      foreign key, error database) dibalas `500`; detail internal tidak
-      dibocorkan.
-    - `404` khusus untuk `GET`/`PUT`/`DELETE` by id saat data tidak ada atau
-      sudah dihapus (soft delete).
-    - Tanggal bisnis dikirim sebagai `DD-MM-YYYY` pada response; request menerima
+      field wajib kosong, panjang melebihi batas, tanggal tidak valid, atau `q`
+      di luar 3–100 karakter.
+    - `404` berarti data dengan `id` tersebut tidak ditemukan.
+    - `500` berarti terjadi kesalahan di server; detailnya tidak disertakan.
+    - Tanggal pada response berformat `DD-MM-YYYY`; request menerima
       `DD-MM-YYYY` maupun `YYYY-MM-DD`.
-    - `DELETE` adalah soft delete dan membalas `204` tanpa body.
+    - `DELETE` membalas `204` tanpa body.
   license:
     name: Proprietary
 
@@ -50,7 +46,7 @@ paths:
         - $ref: '#/components/parameters/Q'
       responses:
         '200':
-          description: Daftar bidang aktif
+          description: Daftar bidang
           content:
             application/json:
               schema: { $ref: '#/components/schemas/BidangListResponse' }
@@ -71,9 +67,6 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/BidangResponse' }
-
-
-
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
@@ -90,7 +83,6 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/BidangResponse' }
-
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
     put:
@@ -108,20 +100,16 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/BidangResponse' }
-
         '404': { $ref: '#/components/responses/NotFound' }
-
-
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
     delete:
       operationId: deleteBidang
-      summary: Hapus bidang (soft delete)
+      summary: Hapus bidang
       tags: [bidang]
       responses:
         '204':
-          description: Bidang dihapus
-
+          description: Bidang berhasil dihapus
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
@@ -134,7 +122,7 @@ paths:
         - $ref: '#/components/parameters/Q'
       responses:
         '200':
-          description: Daftar pegawai aktif
+          description: Daftar pegawai
           content:
             application/json:
               schema: { $ref: '#/components/schemas/PegawaiListResponse' }
@@ -155,9 +143,6 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/PegawaiResponse' }
-
-
-
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
@@ -174,7 +159,6 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/PegawaiResponse' }
-
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
     put:
@@ -192,20 +176,16 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/PegawaiResponse' }
-
         '404': { $ref: '#/components/responses/NotFound' }
-
-
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
     delete:
       operationId: deletePegawai
-      summary: Hapus pegawai (soft delete)
+      summary: Hapus pegawai
       tags: [pegawai]
       responses:
         '204':
-          description: Pegawai dihapus
-
+          description: Pegawai berhasil dihapus
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
@@ -216,8 +196,8 @@ components:
       in: query
       required: false
       description: |
-        Kata kunci pencarian trigram. Kosong/whitespace berarti tanpa filter.
-        Kurang dari 3 karakter atau lebih dari 100 karakter dibalas `422`.
+        Kata kunci pencarian. Kosong atau hanya whitespace berarti tanpa filter.
+        Panjang 3–100 karakter; di luar itu dibalas `422`.
       schema:
         type: string
         maxLength: 100
@@ -227,8 +207,7 @@ components:
       in: path
       required: true
       description: |
-        ID numerik (`INTEGER PRIMARY KEY AUTOINCREMENT`). Nilai yang bukan
-        bilangan bulat positif dibalas `422`.
+        ID data. Nilai yang bukan bilangan bulat positif dibalas `422`.
       schema:
         type: integer
         format: int64
@@ -237,25 +216,24 @@ components:
 
   responses:
     NotFound:
-      description: |
-        Data tidak ada atau sudah dihapus (soft delete). Hanya dipakai operasi
-        by id: `GET`, `PUT`, dan `DELETE`.
+      description: Data dengan `id` tersebut tidak ditemukan.
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
     UnprocessableEntity:
       description: |
-        Validasi gagal. Mencakup request yang tidak terbaca (JSON rusak, lebih
-        dari satu objek, tipe field salah, field tidak dikenal, body > 1 MiB,
-        `id` tidak valid) maupun pelanggaran aturan bisnis (field wajib kosong,
-        melebihi panjang maksimum, tanggal tidak valid, `q` terlalu pendek).
+        Input tidak valid. Mencakup request yang tidak terbaca (JSON rusak,
+        lebih dari satu objek, tipe field salah, field tidak dikenal, body
+        melebihi 1 MiB, `id` tidak valid) maupun aturan isi (field wajib kosong,
+        melebihi panjang maksimum, tanggal tidak valid, `q` di luar 3–100
+        karakter).
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
     InternalServerError:
       description: |
-        Validasi lolos tetapi operasi tetap gagal, mis. unique/NIP duplikat,
-        foreign key, atau error database. Detail internal tidak dibocorkan.
+        Terjadi kesalahan di server. Detail tidak disertakan; hubungi admin bila
+        berulang.
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -280,6 +258,7 @@ components:
           type: integer
           format: int64
           minimum: 1
+          description: ID bidang.
         bidang:
           type: string
           minLength: 1
@@ -295,7 +274,9 @@ components:
           type: string
           minLength: 1
           maxLength: 150
-          description: Di-trim; kosong atau lebih dari 150 karakter dibalas `422`.
+          description: |
+            Spasi di awal/akhir diabaikan. Kosong atau lebih dari 150 karakter
+            dibalas `422`.
           examples: [Keuangan]
 
     BidangResponse:
@@ -319,8 +300,8 @@ components:
       type: string
       enum: [pria, wanita]
       description: |
-        Label jenis kelamin. Perbandingan case-insensitive; nilai disimpan
-        sebagai boolean `is_male` di database. Nilai di luar enum dibalas `422`.
+        Label jenis kelamin. Perbandingan tidak membedakan huruf besar/kecil;
+        nilai lain dibalas `422`.
 
     JenisKelamin:
       type: string
@@ -331,8 +312,8 @@ components:
       type: string
       pattern: '^(\d{2}-\d{2}-\d{4}|\d{4}-\d{2}-\d{2})$'
       description: |
-        Menerima `DD-MM-YYYY` atau `YYYY-MM-DD`. Disimpan sebagai ISO-8601
-        (`YYYY-MM-DD`). Tanggal di masa depan dibalas `422`.
+        Menerima `DD-MM-YYYY` atau `YYYY-MM-DD`. Tanggal di masa depan dibalas
+        `422`.
       examples: ['17-08-1990', '1990-08-17']
 
     TanggalLahir:
@@ -350,10 +331,12 @@ components:
           type: integer
           format: int64
           minimum: 1
+          description: ID pegawai.
         bidang_id:
           type: integer
           format: int64
           minimum: 1
+          description: ID bidang tempat pegawai berada.
         nama:
           type: string
           minLength: 1
@@ -362,7 +345,7 @@ components:
           type: string
           minLength: 1
           maxLength: 50
-          description: Unik di antara pegawai aktif.
+          description: Harus unik.
         tanggal_lahir: { $ref: '#/components/schemas/TanggalLahir' }
         alamat:
           type: string
@@ -379,9 +362,7 @@ components:
           type: integer
           format: int64
           minimum: 1
-          description: |
-            Harus merujuk bidang aktif. Bila insert gagal karena bidang tidak
-            ada, itu error pasca-validasi dan dibalas `500`.
+          description: ID bidang tempat pegawai berada.
         nama:
           type: string
           minLength: 1
@@ -390,6 +371,7 @@ components:
           type: string
           minLength: 1
           maxLength: 50
+          description: Harus unik.
         tanggal_lahir: { $ref: '#/components/schemas/TanggalLahirInput' }
         alamat:
           type: string

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -96,6 +97,30 @@ func TestOpenAPIStatusCodes(t *testing.T) {
 			if !byID && codes[404] {
 				t.Errorf("%s: 404 hanya boleh dipakai operasi by id", key)
 			}
+		}
+	}
+}
+
+// TestOpenAPISpecHasNoInternalDetails keeps the contract consumer-facing:
+// table names, indexes, storage format, and search internals are not the
+// client's business.
+func TestOpenAPISpecHasNoInternalDetails(t *testing.T) {
+	raw, err := os.ReadFile("openapi.yaml")
+	if err != nil {
+		t.Fatalf("read spec: %v", err)
+	}
+	lower := strings.ToLower(string(raw))
+
+	forbidden := []string{
+		"soft delete", "search_text", "is_male", "foreign key",
+		"unique index", "autoincrement", "epoch", "fts5", "trigram",
+		"sqlite", "migration",
+		"created_at", "created_by", "updated_at", "updated_by",
+		"deleted_at", "deleted_by",
+	}
+	for _, word := range forbidden {
+		if strings.Contains(lower, word) {
+			t.Errorf("spec membocorkan detail internal: %q", word)
 		}
 	}
 }
