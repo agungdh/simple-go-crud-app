@@ -1,0 +1,417 @@
+openapi: 3.1.0
+
+info:
+  title: Simple Go CRUD API
+  version: 0.1.0
+  description: |
+    Kontrak API untuk entitas `bidang` dan `pegawai`.
+
+    Konvensi yang mengikat implementasi:
+
+    - Response sukses selalu dibungkus `{"data": ...}`.
+    - Response error selalu `{"error": "pesan"}` dan pesannya aman ditampilkan.
+    - Kolom audit (`created_*`, `updated_*`, `deleted_*`) dan kolom internal
+      (`search_text`, `is_male`) tidak pernah muncul di request maupun response.
+    - Pencarian memakai `?q=` dengan trigram: minimal 3 karakter, maksimal 100.
+      Pelanggaran aturan bisnis dibalas `422`, bukan `400`.
+    - `400` khusus untuk request yang tidak bisa dibaca: JSON rusak, tipe salah,
+      field tidak dikenal, atau `id` bukan bilangan bulat positif.
+    - `413` untuk body melebihi 1 MiB.
+    - Tanggal bisnis dikirim sebagai `DD-MM-YYYY` pada response; request menerima
+      `DD-MM-YYYY` maupun `YYYY-MM-DD`.
+    - `DELETE` adalah soft delete dan membalas `204` tanpa body.
+  license:
+    name: Proprietary
+
+servers:
+  - url: http://127.0.0.1:8080
+    description: Development lokal
+
+tags:
+  - name: bidang
+    description: Data bidang/departemen
+  - name: pegawai
+    description: Data pegawai, selalu terikat ke satu bidang
+
+paths:
+  /bidang:
+    get:
+      operationId: listBidang
+      summary: Daftar bidang
+      tags: [bidang]
+      parameters:
+        - $ref: '#/components/parameters/Q'
+      responses:
+        '200':
+          description: Daftar bidang aktif
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BidangListResponse' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    post:
+      operationId: createBidang
+      summary: Tambah bidang
+      tags: [bidang]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BidangInput' }
+      responses:
+        '201':
+          description: Bidang dibuat
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BidangResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /bidang/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ID'
+    get:
+      operationId: getBidang
+      summary: Detail bidang
+      tags: [bidang]
+      responses:
+        '200':
+          description: Bidang ditemukan
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BidangResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    put:
+      operationId: updateBidang
+      summary: Ubah bidang
+      tags: [bidang]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BidangInput' }
+      responses:
+        '200':
+          description: Bidang diperbarui
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BidangResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    delete:
+      operationId: deleteBidang
+      summary: Hapus bidang (soft delete)
+      tags: [bidang]
+      responses:
+        '204':
+          description: Bidang dihapus
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /pegawai:
+    get:
+      operationId: listPegawai
+      summary: Daftar pegawai
+      tags: [pegawai]
+      parameters:
+        - $ref: '#/components/parameters/Q'
+      responses:
+        '200':
+          description: Daftar pegawai aktif
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PegawaiListResponse' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    post:
+      operationId: createPegawai
+      summary: Tambah pegawai
+      tags: [pegawai]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PegawaiInput' }
+      responses:
+        '201':
+          description: Pegawai dibuat
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PegawaiResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /pegawai/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ID'
+    get:
+      operationId: getPegawai
+      summary: Detail pegawai
+      tags: [pegawai]
+      responses:
+        '200':
+          description: Pegawai ditemukan
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PegawaiResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    put:
+      operationId: updatePegawai
+      summary: Ubah pegawai
+      tags: [pegawai]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PegawaiInput' }
+      responses:
+        '200':
+          description: Pegawai diperbarui
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PegawaiResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    delete:
+      operationId: deletePegawai
+      summary: Hapus pegawai (soft delete)
+      tags: [pegawai]
+      responses:
+        '204':
+          description: Pegawai dihapus
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+components:
+  parameters:
+    Q:
+      name: q
+      in: query
+      required: false
+      description: |
+        Kata kunci pencarian trigram. Kosong/whitespace berarti tanpa filter.
+        Kurang dari 3 karakter atau lebih dari 100 karakter dibalas `422`.
+      schema:
+        type: string
+        maxLength: 100
+        examples: [keuangan]
+    ID:
+      name: id
+      in: path
+      required: true
+      description: ID numerik (`INTEGER PRIMARY KEY AUTOINCREMENT`).
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+        examples: [1]
+
+  responses:
+    BadRequest:
+      description: |
+        Request tidak bisa dibaca: JSON rusak, lebih dari satu objek, tipe field
+        salah, field tidak dikenal, atau `id` tidak valid.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    NotFound:
+      description: Data tidak ditemukan atau sudah dihapus (soft delete).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Conflict:
+      description: |
+        Melanggar unique index aktif atau foreign key `bidang_id`; misalnya
+        nama bidang duplikat, NIP duplikat, atau bidang tidak ada.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    PayloadTooLarge:
+      description: Body melebihi 1 MiB.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    UnprocessableEntity:
+      description: |
+        Input terbaca tapi melanggar aturan bisnis (mis. field wajib kosong,
+        melebihi panjang maksimum, tanggal tidak valid, atau `q` terlalu pendek).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    InternalServerError:
+      description: Kesalahan internal. Detail tidak dibocorkan ke klien.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  schemas:
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Pesan error yang aman ditampilkan.
+          examples: [bidang tidak ditemukan]
+
+    Bidang:
+      type: object
+      additionalProperties: false
+      required: [id, bidang]
+      properties:
+        id:
+          type: integer
+          format: int64
+          minimum: 1
+        bidang:
+          type: string
+          minLength: 1
+          maxLength: 150
+          examples: [Keuangan]
+
+    BidangInput:
+      type: object
+      additionalProperties: false
+      required: [bidang]
+      properties:
+        bidang:
+          type: string
+          minLength: 1
+          maxLength: 150
+          description: Di-trim; kosong atau lebih dari 150 karakter dibalas `422`.
+          examples: [Keuangan]
+
+    BidangResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Bidang' }
+
+    BidangListResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: array
+          description: Selalu array, kosong (`[]`) bila tidak ada hasil.
+          items: { $ref: '#/components/schemas/Bidang' }
+
+    JenisKelaminInput:
+      type: string
+      enum: [pria, wanita]
+      description: |
+        Label jenis kelamin. Perbandingan case-insensitive; nilai disimpan
+        sebagai boolean `is_male` di database. Nilai di luar enum dibalas `422`.
+
+    JenisKelamin:
+      type: string
+      enum: [Pria, Wanita]
+      description: Label jenis kelamin pada response, selalu berawalan huruf besar.
+
+    TanggalLahirInput:
+      type: string
+      pattern: '^(\d{2}-\d{2}-\d{4}|\d{4}-\d{2}-\d{2})$'
+      description: |
+        Menerima `DD-MM-YYYY` atau `YYYY-MM-DD`. Disimpan sebagai ISO-8601
+        (`YYYY-MM-DD`). Tanggal di masa depan dibalas `422`.
+      examples: ['17-08-1990', '1990-08-17']
+
+    TanggalLahir:
+      type: string
+      pattern: '^\d{2}-\d{2}-\d{4}$'
+      description: Tanggal lahir pada response, selalu `DD-MM-YYYY`.
+      examples: ['17-08-1990']
+
+    Pegawai:
+      type: object
+      additionalProperties: false
+      required: [id, bidang_id, nama, nip, tanggal_lahir, alamat, jenis_kelamin]
+      properties:
+        id:
+          type: integer
+          format: int64
+          minimum: 1
+        bidang_id:
+          type: integer
+          format: int64
+          minimum: 1
+        nama:
+          type: string
+          minLength: 1
+          maxLength: 150
+        nip:
+          type: string
+          minLength: 1
+          maxLength: 50
+          description: Unik di antara pegawai aktif.
+        tanggal_lahir: { $ref: '#/components/schemas/TanggalLahir' }
+        alamat:
+          type: string
+          minLength: 1
+          maxLength: 500
+        jenis_kelamin: { $ref: '#/components/schemas/JenisKelamin' }
+
+    PegawaiInput:
+      type: object
+      additionalProperties: false
+      required: [bidang_id, nama, nip, tanggal_lahir, alamat, jenis_kelamin]
+      properties:
+        bidang_id:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Harus merujuk bidang aktif; bila tidak ada dibalas `409`.
+        nama:
+          type: string
+          minLength: 1
+          maxLength: 150
+        nip:
+          type: string
+          minLength: 1
+          maxLength: 50
+        tanggal_lahir: { $ref: '#/components/schemas/TanggalLahirInput' }
+        alamat:
+          type: string
+          minLength: 1
+          maxLength: 500
+        jenis_kelamin: { $ref: '#/components/schemas/JenisKelaminInput' }
+
+    PegawaiResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Pegawai' }
+
+    PegawaiListResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: array
+          description: Selalu array, kosong (`[]`) bila tidak ada hasil.
+          items: { $ref: '#/components/schemas/Pegawai' }

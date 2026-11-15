@@ -55,6 +55,8 @@ melihat daftar target.
 | `make fmt` | `gofmt -w .` | Format semua file Go |
 | `make fmt-check` | `gofmt -l .` (harus kosong) | Cek format tanpa mengubah file |
 | `make tidy` | `go mod tidy` | Rapikan `go.mod` dan `go.sum` |
+| `make api-gen` | `go run ... oapi-codegen -config api/oapi-codegen.yaml api/openapi.yaml` | Generate tipe/route Go dari kontrak |
+| `make api-check` | `make api-gen` + `git diff --exit-code` | Gagal bila kode generated tidak sesuai kontrak |
 | `make check` | `make fmt-check vet test` | Format, vet, dan test sekaligus |
 | `make clean` | `rm -rf bin` | Hapus hasil build |
 
@@ -93,6 +95,9 @@ Selalu jalankan `make check` (fmt, vet, test) sebelum selesai.
 
 - `main.go` — entrypoint, wiring dependency, start server.
 - `internal/` — kode aplikasi (handler, service, repository, model, router).
+- `api/` — kontrak OpenAPI (`openapi.yaml`) dan konfigurasi `oapi-codegen`;
+  sumber kebenaran bentuk API.
+- `internal/api/` — kode hasil generate dari kontrak; jangan diedit manual.
 - `migrations/` — file migration goose.
 - `persistence/db/` — database runtime (tidak di-commit); hanya `.gitkeep`.
 - `Makefile` — target perintah harian; sumber kebenaran daftar perintah.
@@ -331,6 +336,25 @@ CREATE VIRTUAL TABLE items_fts USING fts5(
   `DD-MM-YYYY` maupun `YYYY-MM-DD`; penyimpanan tetap `YYYY-MM-DD`.
 - Jangan expose kolom internal apa adanya. Boolean/enum dipetakan ke label
   Indonesia di service, mis. `is_male` → `jenis_kelamin`: `Pria`/`Wanita`.
+
+#### Kontrak API (contract-first)
+
+- `api/openapi.yaml` adalah **sumber kebenaran**. Ubah kontrak dulu, baru kode.
+- Setelah mengubah kontrak: `make api-gen`, lalu sesuaikan handler/service.
+- Tipe request/response di handler memakai tipe hasil generate di
+  `internal/api`; jangan menulis DTO manual yang menduplikasi kontrak.
+- Nama method generated mengikuti `operationId` (mis. `listBidang` →
+  `ListBidang`). Router didaftarkan lewat `api.HandlerFromMux`.
+- Jangan mengedit `internal/api/api.gen.go` manual; file itu hasil `api-gen`.
+- `make api-check` dijalankan sebelum merge agar kode generated tidak basi.
+- Kontrak wajib mendokumentasikan: envelope `data`/`error`, status `400`,
+  `404`, `409`, `413`, `422`, `500` yang benar-benar dipakai endpoint, dan
+  larangan mengekspos kolom audit/internal.
+- Perbedaan status yang disengaja: pelanggaran aturan bisnis = `422`;
+  request tak terbaca (JSON rusak, tipe salah, field asing, `id` invalid) =
+  `400`; body > 1 MiB = `413`.
+- Tanggal di kontrak memakai `pattern`, bukan `format: date`, karena DTO
+  memakai `DD-MM-YYYY`; request menerima dua format.
 
 ### Testing
 

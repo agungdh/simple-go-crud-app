@@ -1,0 +1,9 @@
+package: api
+output: internal/api/api.gen.go
+
+generate:
+  chi-server: true
+  models: true
+
+output-options:
+  nullable-type: true
