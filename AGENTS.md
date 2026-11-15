@@ -321,8 +321,10 @@ CREATE VIRTUAL TABLE items_fts USING fts5(
 - Pencarian lewat query param `?q=`: trim input, minimal 3 karakter dan
   maksimal 100 karakter (di luar itu `422`), dan jangan expose `search_text` di
   response.
+- Tanggal di DTO memakai `DD-MM-YYYY` (format Indonesia). Request menerima
+  `DD-MM-YYYY` maupun `YYYY-MM-DD`; penyimpanan tetap `YYYY-MM-DD`.
 - Jangan expose kolom internal apa adanya. Boolean/enum dipetakan ke label
-  Indonesia di service, mis. `is_male` → `jenis_kelamin`: `pria`/`wanita`.
+  Indonesia di service, mis. `is_male` → `jenis_kelamin`: `Pria`/`Wanita`.
 
 ### Testing
 

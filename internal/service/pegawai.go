@@ -13,7 +13,8 @@ import (
 )
 
 const (
-	dateLayout = "2006-01-02"
+	dateLayout     = "2006-01-02" // storage
+	dateLayoutIndo = "02-01-2006" // DTO, e.g. 17-05-1985
 
 	maxNamaLength   = 150
 	maxNIPLength    = 50
@@ -138,7 +139,10 @@ func parseTanggalLahir(value string) (string, error) {
 
 	t, err := time.Parse(dateLayout, value)
 	if err != nil {
-		return "", apperr.Validation("tanggal_lahir harus berformat YYYY-MM-DD")
+		t, err = time.Parse(dateLayoutIndo, value)
+	}
+	if err != nil {
+		return "", apperr.Validation("tanggal_lahir harus berformat DD-MM-YYYY atau YYYY-MM-DD")
 	}
 
 	now := time.Now().UTC()
@@ -148,6 +152,15 @@ func parseTanggalLahir(value string) (string, error) {
 	}
 
 	return t.Format(dateLayout), nil
+}
+
+// FormatTanggalLahir returns the stored ISO date as DD-MM-YYYY for the DTO.
+func FormatTanggalLahir(value string) string {
+	t, err := time.Parse(dateLayout, value)
+	if err != nil {
+		return value
+	}
+	return t.Format(dateLayoutIndo)
 }
 
 // parseJenisKelamin maps the API label to the stored boolean.
@@ -164,10 +177,10 @@ func parseJenisKelamin(value string) (bool, error) {
 	}
 }
 
-// FormatJenisKelamin maps the stored boolean to the API label.
+// FormatJenisKelamin maps the stored boolean to the DTO label.
 func FormatJenisKelamin(isMale bool) string {
 	if isMale {
-		return jenisKelaminPria
+		return "Pria"
 	}
-	return jenisKelaminWanita
+	return "Wanita"
 }

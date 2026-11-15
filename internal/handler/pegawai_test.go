@@ -117,11 +117,11 @@ func TestPegawaiCRUD(t *testing.T) {
 	if created.Nama != "Budi Santoso" || created.NIP != "199001012020011001" {
 		t.Fatalf("unexpected created pegawai: %+v", created)
 	}
-	if created.TanggalLahir != "1990-01-01" {
-		t.Fatalf("tanggal_lahir = %q, want 1990-01-01", created.TanggalLahir)
+	if created.TanggalLahir != "01-01-1990" {
+		t.Fatalf("tanggal_lahir = %q, want 01-01-1990", created.TanggalLahir)
 	}
-	if created.JenisKelamin != "pria" {
-		t.Fatalf("jenis_kelamin = %q, want pria", created.JenisKelamin)
+	if created.JenisKelamin != "Pria" {
+		t.Fatalf("jenis_kelamin = %q, want Pria", created.JenisKelamin)
 	}
 
 	rec := doRequest(t, srv, http.MethodGet, "/pegawai", nil)
@@ -150,18 +150,18 @@ func TestPegawaiCRUD(t *testing.T) {
 
 	updatePayload := validPayload()
 	updatePayload["nama"] = "Budi Santoso Baru"
-	updatePayload["tanggal_lahir"] = "1991-02-03"
+	updatePayload["tanggal_lahir"] = "03-02-1991"
 	updatePayload["jenis_kelamin"] = "wanita"
 	rec = doRequest(t, srv, http.MethodPut, path, updatePayload)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("update status = %d, body = %s", rec.Code, rec.Body.String())
 	}
 	updated := decodeResponse(t, rec).Data
-	if updated.Nama != "Budi Santoso Baru" || updated.TanggalLahir != "1991-02-03" {
+	if updated.Nama != "Budi Santoso Baru" || updated.TanggalLahir != "03-02-1991" {
 		t.Fatalf("unexpected updated pegawai: %+v", updated)
 	}
-	if updated.JenisKelamin != "wanita" {
-		t.Fatalf("jenis_kelamin = %q, want wanita", updated.JenisKelamin)
+	if updated.JenisKelamin != "Wanita" {
+		t.Fatalf("jenis_kelamin = %q, want Wanita", updated.JenisKelamin)
 	}
 
 	rec = doRequest(t, srv, http.MethodDelete, path, nil)
@@ -193,7 +193,7 @@ func TestCreatePegawaiValidation(t *testing.T) {
 		},
 		{
 			name:       "invalid tanggal lahir",
-			mutate:     func(p map[string]any) { p["tanggal_lahir"] = "01-01-1990" },
+			mutate:     func(p map[string]any) { p["tanggal_lahir"] = "1990/01/01" },
 			wantStatus: http.StatusUnprocessableEntity,
 		},
 		{
@@ -437,8 +437,8 @@ func assertInternalColumnsHidden(t *testing.T, row map[string]any) {
 			t.Fatalf("column %q must not be exposed in the response", column)
 		}
 	}
-	if got := row["jenis_kelamin"]; got != "pria" {
-		t.Fatalf("jenis_kelamin = %v, want pria", got)
+	if got := row["jenis_kelamin"]; got != "Pria" {
+		t.Fatalf("jenis_kelamin = %v, want Pria", got)
 	}
 }
 
