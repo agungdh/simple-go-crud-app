@@ -7,16 +7,17 @@ DB_PATH   ?= persistence/db/app.db
 # Build goose with SQLite support only; the project does not use other drivers.
 GOOSE_TAGS ?= no_clickhouse no_libsql no_mssql no_azuresql no_mysql no_postgres no_vertica no_ydb
 GOOSE      ?= go run -tags '$(GOOSE_TAGS)' github.com/pressly/goose/v3/cmd/goose@v3.30.0
-# API docs are rendered by Redoc via Node.js; the port avoids the app (8080)
-# and sqlite-web (8083).
-REDOCLY   ?= npx --yes @redocly/cli@1.34.24
+# API docs and request testing are rendered by Scalar via Node.js; the ports
+# avoid the app (8080) and sqlite-web (8083).
+SCALAR    ?= npx --yes @scalar/cli@2.17.0
 DOCS_PORT ?= 8082
+MOCK_PORT ?= 8081
 GO_FILES  := $(shell find . -type f -name '*.go' -not -path './vendor/*')
 
 .DEFAULT_GOAL := help
 
 .PHONY: help run build test vet fmt fmt-check tidy check \
-	api-validate docs \
+	api-validate docs mock \
 	migrate-up migrate-down migrate-status migrate-create clean
 
 help: ## Tampilkan daftar target
@@ -54,8 +55,11 @@ check: fmt-check vet test ## Jalankan fmt-check, vet, dan test
 api-validate: ## Validasi kontrak OpenAPI dan kecocokan DTO
 	go test ./api ./internal/dto
 
-docs: ## Preview kontrak OpenAPI di browser (butuh Node.js, port 8082)
-	$(REDOCLY) preview-docs api/openapi.yaml -p $(DOCS_PORT)
+docs: ## Preview kontrak + coba request di browser (butuh Node.js, port 8082)
+	$(SCALAR) document serve api/openapi.yaml --port $(DOCS_PORT) --watch
+
+mock: ## Mock server dari kontrak, untuk FE sebelum BE ada (port 8081)
+	$(SCALAR) document mock api/openapi.yaml --port $(MOCK_PORT)
 
 migrate-up: ## Jalankan semua migration
 	$(GOOSE) -dir migrations sqlite3 $(DB_PATH) up

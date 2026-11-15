@@ -44,7 +44,8 @@ membuka database dan menjalankan migration, belum menyalakan server.
 - Database: **SQLite3** (satu-satunya database), driver **`modernc.org/sqlite`** (pure Go, tanpa CGO)
 - ORM: **`github.com/uptrace/bun`** + **`bun/dialect/sqlitedialect`**
 - Migration: **`github.com/pressly/goose/v3`**
-- Docs UI: **Redocly CLI** lewat `npx` (butuh Node.js), hanya untuk `make docs`
+- Docs UI: **Scalar CLI** lewat `npx` (butuh Node.js) untuk `make docs` dan
+  `make mock`; Scalar mendukung OpenAPI 3.1 dan panel "Test Request".
 
 Buka koneksi dengan `sql.Open("sqlite", dsn)`. Jangan memakai
 `bun/driver/sqliteshim` atau `github.com/mattn/go-sqlite3`; keduanya menambah
@@ -67,7 +68,8 @@ melihat daftar target.
 | `make fmt-check` | `gofmt -l .` (harus kosong) | Cek format tanpa mengubah file |
 | `make tidy` | `go mod tidy` | Rapikan `go.mod` dan `go.sum` |
 | `make api-validate` | `go test ./api ./internal/dto` | Validasi kontrak + kecocokan DTO |
-| `make docs` | `npx @redocly/cli preview-docs api/openapi.yaml -p 8082` | Preview dokumentasi di <http://127.0.0.1:8082> (butuh Node.js) |
+| `make docs` | `npx @scalar/cli document serve api/openapi.yaml -p 8082` | Preview kontrak + "Test Request" di <http://127.0.0.1:8082> (butuh Node.js) |
+| `make mock` | `npx @scalar/cli document mock api/openapi.yaml -p 8081` | Mock server dari kontrak di <http://127.0.0.1:8081> |
 | `make check` | `make fmt-check vet test` | Format, vet, dan test sekaligus |
 | `make clean` | `rm -rf bin` | Hapus hasil build |
 
@@ -99,6 +101,7 @@ lewat `go run`, jadi tidak perlu install goose. Override bila perlu, mis.
 | `NAME` | — (wajib) | `make migrate-create` |
 | `GOOSE` | `go run -tags '<GOOSE_TAGS>' github.com/pressly/goose/v3/cmd/goose@v3.30.0` | Target migration |
 | `DOCS_PORT` | `8082` | `make docs` |
+| `MOCK_PORT` | `8081` | `make mock` |
 
 Selalu jalankan `make check` (fmt, vet, test) sebelum selesai.
 
