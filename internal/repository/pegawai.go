@@ -98,7 +98,7 @@ func (r *PegawaiRepository) Create(ctx context.Context, pegawai *model.Pegawai) 
 func (r *PegawaiRepository) Update(ctx context.Context, pegawai *model.Pegawai) error {
 	res, err := r.db.NewUpdate().
 		Model(pegawai).
-		Column("nama", "nip", "tanggal_lahir", "alamat", "jenis_kelamin", "updated_at", "updated_by").
+		Column("nama", "nip", "tanggal_lahir", "alamat", "is_male", "updated_at", "updated_by").
 		WherePK().
 		Where("deleted_at IS NULL").
 		Exec(ctx)

@@ -258,8 +258,12 @@ Setiap tabel wajib punya kolom `search_text` dan index FTS5 trigram.
 
 - `search_text` adalah **generated column `VIRTUAL`** berisi gabungan semua
   kolom dengan pemisah spasi: **semua kolom kecuali `id`, kolom FK, dan kolom
-  audit**. Bungkus kolom nullable dengan `coalesce(kolom, '')`; kolom non-teks
-  di-`CAST(... AS TEXT)`.
+  audit**. Bungkus kolom nullable dengan `coalesce(kolom, '')`.
+- Cast nilai ke bentuk yang **dilihat/diketik user**, bukan bentuk mentah:
+  tanggal `YYYY-MM-DD` → `DD-MM-YYYY`
+  (`substr(tanggal, 9, 2) || '-' || substr(tanggal, 6, 2) || '-' || substr(tanggal, 1, 4)`),
+  boolean/enum → label Indonesia (`pria`/`wanita`), bukan `0`/`1` atau `L`/`P`.
+  Kolom lain yang bukan teks di-`CAST(... AS TEXT)`.
 - Jangan mendeklarasikan `search_text` di model Bun dan jangan pernah
   mengirimnya ke API. Kolom ini hanya untuk pencarian.
 - Index memakai **FTS5 trigram external content**, jadi teks tidak disimpan dua

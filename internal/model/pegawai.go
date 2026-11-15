@@ -15,5 +15,5 @@ type Pegawai struct {
 	NIP          string `bun:"nip,notnull"`
 	TanggalLahir string `bun:"tanggal_lahir,notnull"`
 	Alamat       string `bun:"alamat,notnull"`
-	JenisKelamin string `bun:"jenis_kelamin,notnull"`
+	IsMale       bool   `bun:"is_male,notnull"`
 }

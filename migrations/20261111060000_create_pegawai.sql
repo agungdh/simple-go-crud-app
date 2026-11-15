@@ -5,13 +5,15 @@ CREATE TABLE pegawai (
     nip           TEXT NOT NULL,
     tanggal_lahir TEXT NOT NULL,
     alamat        TEXT NOT NULL,
-    jenis_kelamin TEXT NOT NULL CHECK (jenis_kelamin IN ('L', 'P')),
+    is_male       INTEGER NOT NULL CHECK (is_male IN (0, 1)),
     search_text   TEXT GENERATED ALWAYS AS (
                       nama || ' ' ||
                       nip || ' ' ||
-                      tanggal_lahir || ' ' ||
+                      substr(tanggal_lahir, 9, 2) || '-' ||
+                      substr(tanggal_lahir, 6, 2) || '-' ||
+                      substr(tanggal_lahir, 1, 4) || ' ' ||
                       alamat || ' ' ||
-                      jenis_kelamin
+                      CASE WHEN is_male THEN 'pria' ELSE 'wanita' END
                   ) VIRTUAL,
     created_at    INTEGER,
     created_by    BIGINT,

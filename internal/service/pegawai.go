@@ -28,7 +28,7 @@ type PegawaiInput struct {
 	NIP          string
 	TanggalLahir string
 	Alamat       string
-	JenisKelamin string
+	IsMale       *bool
 }
 
 // PegawaiService contains pegawai business rules.
@@ -109,9 +109,8 @@ func buildPegawai(in PegawaiInput) (*model.Pegawai, error) {
 		return nil, err
 	}
 
-	jenisKelamin, err := normalizeJenisKelamin(in.JenisKelamin)
-	if err != nil {
-		return nil, err
+	if in.IsMale == nil {
+		return nil, apperr.Validation("is_male wajib diisi")
 	}
 
 	return &model.Pegawai{
@@ -119,7 +118,7 @@ func buildPegawai(in PegawaiInput) (*model.Pegawai, error) {
 		NIP:          nip,
 		TanggalLahir: tanggalLahir,
 		Alamat:       alamat,
-		JenisKelamin: jenisKelamin,
+		IsMale:       *in.IsMale,
 	}, nil
 }
 
@@ -141,15 +140,4 @@ func parseTanggalLahir(value string) (string, error) {
 	}
 
 	return t.Format(dateLayout), nil
-}
-
-func normalizeJenisKelamin(value string) (string, error) {
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "l", "laki-laki", "laki laki":
-		return "L", nil
-	case "p", "perempuan":
-		return "P", nil
-	default:
-		return "", apperr.Validation("jenis_kelamin harus L atau P")
-	}
 }

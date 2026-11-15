@@ -26,7 +26,7 @@ type pegawaiData struct {
 	NIP          string `json:"nip"`
 	TanggalLahir string `json:"tanggal_lahir"`
 	Alamat       string `json:"alamat"`
-	JenisKelamin string `json:"jenis_kelamin"`
+	IsMale       bool   `json:"is_male"`
 }
 
 type apiResponse struct {
@@ -93,7 +93,7 @@ func validPayload() map[string]any {
 		"nip":           "199001012020011001",
 		"tanggal_lahir": "1990-01-01",
 		"alamat":        "Jl. Merdeka No. 1, Jakarta",
-		"jenis_kelamin": "L",
+		"is_male":       true,
 	}
 }
 
@@ -120,8 +120,8 @@ func TestPegawaiCRUD(t *testing.T) {
 	if created.TanggalLahir != "1990-01-01" {
 		t.Fatalf("tanggal_lahir = %q, want 1990-01-01", created.TanggalLahir)
 	}
-	if created.JenisKelamin != "L" {
-		t.Fatalf("jenis_kelamin = %q, want L", created.JenisKelamin)
+	if !created.IsMale {
+		t.Fatal("is_male = false, want true")
 	}
 
 	rec := doRequest(t, srv, http.MethodGet, "/pegawai", nil)
@@ -151,7 +151,7 @@ func TestPegawaiCRUD(t *testing.T) {
 	updatePayload := validPayload()
 	updatePayload["nama"] = "Budi Santoso Baru"
 	updatePayload["tanggal_lahir"] = "1991-02-03"
-	updatePayload["jenis_kelamin"] = "perempuan"
+	updatePayload["is_male"] = false
 	rec = doRequest(t, srv, http.MethodPut, path, updatePayload)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("update status = %d, body = %s", rec.Code, rec.Body.String())
@@ -160,8 +160,8 @@ func TestPegawaiCRUD(t *testing.T) {
 	if updated.Nama != "Budi Santoso Baru" || updated.TanggalLahir != "1991-02-03" {
 		t.Fatalf("unexpected updated pegawai: %+v", updated)
 	}
-	if updated.JenisKelamin != "P" {
-		t.Fatalf("jenis_kelamin = %q, want P", updated.JenisKelamin)
+	if updated.IsMale {
+		t.Fatal("is_male = true, want false")
 	}
 
 	rec = doRequest(t, srv, http.MethodDelete, path, nil)
@@ -202,9 +202,14 @@ func TestCreatePegawaiValidation(t *testing.T) {
 			wantStatus: http.StatusUnprocessableEntity,
 		},
 		{
-			name:       "invalid jenis kelamin",
-			mutate:     func(p map[string]any) { p["jenis_kelamin"] = "X" },
+			name:       "missing is_male",
+			mutate:     func(p map[string]any) { delete(p, "is_male") },
 			wantStatus: http.StatusUnprocessableEntity,
+		},
+		{
+			name:       "invalid is_male type",
+			mutate:     func(p map[string]any) { p["is_male"] = "L" },
+			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "unknown field",
@@ -345,6 +350,7 @@ func TestPegawaiSearch(t *testing.T) {
 	second["nip"] = "199001012020011002"
 	second["tanggal_lahir"] = "1985-05-17"
 	second["alamat"] = "Jl. Melati No. 2, Bandung"
+	second["is_male"] = false
 	rec := doRequest(t, srv, http.MethodPost, "/pegawai", second)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("second create status = %d, body = %s", rec.Code, rec.Body.String())
@@ -357,8 +363,10 @@ func TestPegawaiSearch(t *testing.T) {
 	}{
 		{name: "matches nama", query: "budi", want: 1},
 		{name: "matches partial alamat", query: "merdeka", want: 1},
-		{name: "matches tanggal lahir", query: "1985-05-17", want: 1},
-		{name: "matches partial tanggal lahir", query: "1985-05", want: 1},
+		{name: "matches tanggal lahir", query: "17-05-1985", want: 1},
+		{name: "matches partial tanggal lahir", query: "05-1985", want: 1},
+		{name: "matches pria", query: "pria", want: 1},
+		{name: "matches wanita", query: "wanita", want: 1},
 		{name: "case insensitive", query: "BUDI", want: 1},
 		{name: "short query fallback", query: "si", want: 1},
 		{name: "no match", query: "zzz", want: 0},

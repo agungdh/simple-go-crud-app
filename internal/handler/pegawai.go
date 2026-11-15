@@ -41,7 +41,7 @@ type pegawaiRequest struct {
 	NIP          string `json:"nip"`
 	TanggalLahir string `json:"tanggal_lahir"`
 	Alamat       string `json:"alamat"`
-	JenisKelamin string `json:"jenis_kelamin"`
+	IsMale       *bool  `json:"is_male"`
 }
 
 type pegawaiResponse struct {
@@ -50,7 +50,7 @@ type pegawaiResponse struct {
 	NIP          string `json:"nip"`
 	TanggalLahir string `json:"tanggal_lahir"`
 	Alamat       string `json:"alamat"`
-	JenisKelamin string `json:"jenis_kelamin"`
+	IsMale       bool   `json:"is_male"`
 }
 
 func (h *PegawaiHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -181,7 +181,7 @@ func toInput(req pegawaiRequest) service.PegawaiInput {
 		NIP:          req.NIP,
 		TanggalLahir: req.TanggalLahir,
 		Alamat:       req.Alamat,
-		JenisKelamin: req.JenisKelamin,
+		IsMale:       req.IsMale,
 	}
 }
 
@@ -192,7 +192,7 @@ func toResponse(pegawai *model.Pegawai) pegawaiResponse {
 		NIP:          pegawai.NIP,
 		TanggalLahir: pegawai.TanggalLahir,
 		Alamat:       pegawai.Alamat,
-		JenisKelamin: pegawai.JenisKelamin,
+		IsMale:       pegawai.IsMale,
 	}
 }
 
