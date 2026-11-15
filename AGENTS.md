@@ -67,7 +67,7 @@ melihat daftar target.
 | `make fmt` | `gofmt -w .` | Format semua file Go |
 | `make fmt-check` | `gofmt -l .` (harus kosong) | Cek format tanpa mengubah file |
 | `make tidy` | `go mod tidy` | Rapikan `go.mod` dan `go.sum` |
-| `make api-validate` | `go test ./api ./internal/dto` | Validasi kontrak + kecocokan DTO |
+| `make api-validate` | `go test ./internal/dto` | Validasi kontrak + kecocokan DTO |
 | `make docs` | `npx @scalar/cli document serve api/openapi.yaml -p 8082` | Preview kontrak + "Test Request" di <http://127.0.0.1:8082> (butuh Node.js) |
 | `make mock` | `npx @scalar/cli document mock api/openapi.yaml -p 8081` | Mock server dari kontrak di <http://127.0.0.1:8081> |
 | `make check` | `make fmt-check vet test` | Format, vet, dan test sekaligus |
@@ -111,8 +111,7 @@ Selalu jalankan `make check` (fmt, vet, test) sebelum selesai.
   belum di-wire.
 - `internal/` — kode aplikasi. Saat ini berisi `database`, `model`,
   `repository`, dan `apperr`; `handler`, `service`, dan `router` menyusul.
-- `api/` — kontrak OpenAPI (`openapi.yaml`) beserta test validasinya; sumber
-  kebenaran bentuk API.
+- `api/` — kontrak OpenAPI (`openapi.yaml`); sumber kebenaran bentuk API.
 - `internal/dto/` — struct request/response yang ditulis tangan dan harus
   sesuai kontrak; tidak ada kode generated.
 - `migrations/` — file migration goose.
@@ -408,9 +407,9 @@ di bawah ini yang nanti dipegang handler.
 - Setiap endpoint baru punya test happy path + kasus error (setelah layer HTTP
   di-wire).
 - Test tidak boleh bergantung pada state global atau urutan eksekusi.
-- Test kontrak: `api/openapi_test.go` memvalidasi spec, membatasi status yang
-  boleh dipakai, dan menolak detail internal (nama kolom, index, storage)
-  muncul di spec.
+- Test kontrak: tidak ada test khusus di `api/`; `internal/dto/dto_test.go`
+  memuat `api/openapi.yaml` dan memvalidasinya (`doc.Validate`) sekaligus
+  mencocokkan payload DTO dengan schema.
 - Test DTO: `internal/dto/dto_test.go` memvalidasi payload DTO terhadap schema
   kontrak, jadi rename field JSON tanpa update kontrak langsung gagal.
 - Saat menambah DTO baru, tambahkan juga test kecocokannya.
