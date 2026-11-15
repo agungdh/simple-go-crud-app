@@ -2,6 +2,25 @@
 
 Panduan untuk agent yang bekerja di repo ini.
 
+## TL;DR
+
+| Topik | Intinya |
+| --- | --- |
+| Stack | Go + chi + Bun + SQLite (`modernc.org/sqlite`) + goose. Jangan ganti. |
+| Cek cepat | `make help` (daftar target), `make run`, `make check` (wajib sebelum selesai) |
+| DB | `persistence/db/app.db`, WAL, `busy_timeout`, `foreign_keys=ON`, pool kecil |
+| Migration | `make migrate-create NAME=nama` → isi Up/Down → `make migrate-up` |
+| Layer | `main.go` wiring; `internal/` handler → service → repository → model; tidak campur |
+| ID | `INTEGER PRIMARY KEY AUTOINCREMENT`, di Go `int64` |
+| Waktu | Epoch **milliseconds UTC** (`time.Now().UTC().UnixMilli()`), bukan `TEXT` |
+| Audit | Wajib `model.Base`; isi via `MarkCreated/MarkUpdated/MarkDeleted`; jangan expose ke API |
+| Soft delete | `model.Active(q)` + `UPDATE deleted_at/deleted_by`; unik = partial index `WHERE deleted_at IS NULL` |
+| Query | **Jangan `SELECT *`**; pakai `Column(model.PublicColumns(...)...)` |
+| FK | `ON UPDATE RESTRICT ON DELETE RESTRICT`, tipe `BIGINT`, beri index |
+| Error | Unique/FK → `409`; format `{"data": ...}` / `{"error": "..."}`; detail internal jangan dibocorkan |
+| Test | DB sementara; tiap endpoint: happy path + error |
+| Jangan commit | `*.db*`, `bin/`, `.env`, file IDE |
+
 ## Proyek
 
 Project **Go** sederhana. Gunakan stack yang sudah ditentukan; jangan ganti
@@ -21,26 +40,62 @@ ketergantungan yang tidak perlu dan `mattn` butuh CGO.
 
 ## Perintah
 
-```bash
-go run .                  # jalankan aplikasi
-go build ./...            # build
-go test ./...             # test
-go vet ./...              # vet
+Semua perintah harian lewat `make`; jalankan `make` atau `make help` untuk
+melihat daftar target.
 
-goose up                  # jalankan migration
-goose down                # rollback satu migration
-goose status              # cek status migration
-goose create <nama> sql   # buat file migration baru
-goose -dir migrations sqlite3 persistence/db/app.db up   # jalankan tanpa config
-```
+### Build, test, dan tooling
 
-Selalu jalankan `gofmt`, `go vet ./...`, dan `go test ./...` sebelum selesai.
+| Perintah | Ekuivalen manual | Fungsi |
+| --- | --- | --- |
+| `make run` | `ADDR=:8080 DB_PATH=persistence/db/app.db go run .` | Jalankan aplikasi |
+| `make build` | `go build -trimpath -o bin/simple-go-crud-app .` | Build binary ke `bin/` |
+| `make test` | `go test ./...` | Jalankan semua test |
+| `make vet` | `go vet ./...` | Jalankan `go vet` |
+| `make fmt` | `gofmt -w .` | Format semua file Go |
+| `make fmt-check` | `gofmt -l .` (harus kosong) | Cek format tanpa mengubah file |
+| `make tidy` | `go mod tidy` | Rapikan `go.mod` dan `go.sum` |
+| `make check` | `make fmt-check vet test` | Format, vet, dan test sekaligus |
+| `make clean` | `rm -rf bin` | Hapus hasil build |
+
+### Migration (goose)
+
+| Perintah | Ekuivalen manual | Fungsi |
+| --- | --- | --- |
+| `make migrate-up` | `goose -dir migrations sqlite3 persistence/db/app.db up` | Jalankan semua migration |
+| `make migrate-down` | `goose -dir migrations sqlite3 persistence/db/app.db down` | Rollback satu migration terakhir |
+| `make migrate-status` | `goose -dir migrations sqlite3 persistence/db/app.db status` | Tampilkan status migration |
+| `make migrate-create NAME=nama_migration` | `goose -dir migrations sqlite3 persistence/db/app.db create nama_migration sql` | Buat file migration baru |
+
+Target migration memakai `GOOSE_TAGS` (driver SQLite saja) dan menjalankan goose
+lewat `go run`, jadi tidak perlu install goose. Override bila perlu, mis.
+`make migrate-up GOOSE=goose DB_PATH=/tmp/test.db`.
+
+### Database (opsional)
+
+| Perintah | Fungsi |
+| --- | --- |
+| `docker compose up -d` | Jalankan sqlite-web di <http://127.0.0.1:8083> |
+| `docker compose down` | Hentikan sqlite-web |
+
+### Variabel
+
+| Variabel | Default | Dipakai oleh |
+| --- | --- | --- |
+| `ADDR` | `:8080` | `make run` |
+| `DB_PATH` | `persistence/db/app.db` | `make run`, target migration |
+| `NAME` | — (wajib) | `make migrate-create` |
+| `GOOSE` | `go run -tags '<GOOSE_TAGS>' github.com/pressly/goose/v3/cmd/goose@v3.30.0` | Target migration |
+
+Selalu jalankan `make check` (fmt, vet, test) sebelum selesai.
 
 ## Struktur
 
 - `main.go` — entrypoint, wiring dependency, start server.
-- `internal/` — kode aplikasi (handler, service, repository, model).
+- `internal/` — kode aplikasi (handler, service, repository, model, router).
 - `migrations/` — file migration goose.
+- `persistence/db/` — database runtime (tidak di-commit); hanya `.gitkeep`.
+- `Makefile` — target perintah harian; sumber kebenaran daftar perintah.
+- `compose.yml` — sqlite-web untuk inspeksi database.
 - Pisahkan layer: handler tidak menulis query, repository tidak menulis response
   HTTP.
 
