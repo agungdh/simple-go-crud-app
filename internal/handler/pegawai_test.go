@@ -26,7 +26,7 @@ type pegawaiData struct {
 	NIP          string `json:"nip"`
 	TanggalLahir string `json:"tanggal_lahir"`
 	Alamat       string `json:"alamat"`
-	IsMale       bool   `json:"is_male"`
+	JenisKelamin string `json:"jenis_kelamin"`
 }
 
 type apiResponse struct {
@@ -93,7 +93,7 @@ func validPayload() map[string]any {
 		"nip":           "199001012020011001",
 		"tanggal_lahir": "1990-01-01",
 		"alamat":        "Jl. Merdeka No. 1, Jakarta",
-		"is_male":       true,
+		"jenis_kelamin": "pria",
 	}
 }
 
@@ -120,8 +120,8 @@ func TestPegawaiCRUD(t *testing.T) {
 	if created.TanggalLahir != "1990-01-01" {
 		t.Fatalf("tanggal_lahir = %q, want 1990-01-01", created.TanggalLahir)
 	}
-	if !created.IsMale {
-		t.Fatal("is_male = false, want true")
+	if created.JenisKelamin != "pria" {
+		t.Fatalf("jenis_kelamin = %q, want pria", created.JenisKelamin)
 	}
 
 	rec := doRequest(t, srv, http.MethodGet, "/pegawai", nil)
@@ -151,7 +151,7 @@ func TestPegawaiCRUD(t *testing.T) {
 	updatePayload := validPayload()
 	updatePayload["nama"] = "Budi Santoso Baru"
 	updatePayload["tanggal_lahir"] = "1991-02-03"
-	updatePayload["is_male"] = false
+	updatePayload["jenis_kelamin"] = "wanita"
 	rec = doRequest(t, srv, http.MethodPut, path, updatePayload)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("update status = %d, body = %s", rec.Code, rec.Body.String())
@@ -160,8 +160,8 @@ func TestPegawaiCRUD(t *testing.T) {
 	if updated.Nama != "Budi Santoso Baru" || updated.TanggalLahir != "1991-02-03" {
 		t.Fatalf("unexpected updated pegawai: %+v", updated)
 	}
-	if updated.IsMale {
-		t.Fatal("is_male = true, want false")
+	if updated.JenisKelamin != "wanita" {
+		t.Fatalf("jenis_kelamin = %q, want wanita", updated.JenisKelamin)
 	}
 
 	rec = doRequest(t, srv, http.MethodDelete, path, nil)
@@ -202,13 +202,18 @@ func TestCreatePegawaiValidation(t *testing.T) {
 			wantStatus: http.StatusUnprocessableEntity,
 		},
 		{
-			name:       "missing is_male",
-			mutate:     func(p map[string]any) { delete(p, "is_male") },
+			name:       "missing jenis_kelamin",
+			mutate:     func(p map[string]any) { delete(p, "jenis_kelamin") },
 			wantStatus: http.StatusUnprocessableEntity,
 		},
 		{
-			name:       "invalid is_male type",
-			mutate:     func(p map[string]any) { p["is_male"] = "L" },
+			name:       "invalid jenis_kelamin",
+			mutate:     func(p map[string]any) { p["jenis_kelamin"] = "X" },
+			wantStatus: http.StatusUnprocessableEntity,
+		},
+		{
+			name:       "invalid jenis_kelamin type",
+			mutate:     func(p map[string]any) { p["jenis_kelamin"] = 1 },
 			wantStatus: http.StatusBadRequest,
 		},
 		{
@@ -350,7 +355,7 @@ func TestPegawaiSearch(t *testing.T) {
 	second["nip"] = "199001012020011002"
 	second["tanggal_lahir"] = "1985-05-17"
 	second["alamat"] = "Jl. Melati No. 2, Bandung"
-	second["is_male"] = false
+	second["jenis_kelamin"] = "wanita"
 	rec := doRequest(t, srv, http.MethodPost, "/pegawai", second)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("second create status = %d, body = %s", rec.Code, rec.Body.String())
@@ -381,26 +386,59 @@ func TestPegawaiSearch(t *testing.T) {
 	}
 }
 
-func TestPegawaiSearchHidesSearchText(t *testing.T) {
+func TestPegawaiSearchHidesInternalColumns(t *testing.T) {
 	srv := newTestServer(t)
-	createPegawai(t, srv)
+	created := createPegawai(t, srv)
 
 	rec := doRequest(t, srv, http.MethodGet, "/pegawai?q=budi", nil)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+		t.Fatalf("list status = %d, body = %s", rec.Code, rec.Body.String())
 	}
 
-	var payload struct {
+	var list struct {
 		Data []map[string]any `json:"data"`
 	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
-		t.Fatalf("decode response: %v", err)
+	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
+		t.Fatalf("decode list: %v", err)
 	}
-	if len(payload.Data) != 1 {
-		t.Fatalf("len(data) = %d, want 1", len(payload.Data))
+	if len(list.Data) != 1 {
+		t.Fatalf("len(data) = %d, want 1", len(list.Data))
 	}
-	if _, exposed := payload.Data[0]["search_text"]; exposed {
-		t.Fatal("search_text must not be exposed in the response")
+	assertInternalColumnsHidden(t, list.Data[0])
+
+	rec = doRequest(t, srv, http.MethodGet, "/pegawai/"+itoa(created.ID), nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	var detail struct {
+		Data map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &detail); err != nil {
+		t.Fatalf("decode detail: %v", err)
+	}
+	assertInternalColumnsHidden(t, detail.Data)
+}
+
+// assertInternalColumnsHidden guards the DTO: search_text, the stored boolean,
+// and audit columns must never reach the client.
+func assertInternalColumnsHidden(t *testing.T, row map[string]any) {
+	t.Helper()
+
+	hidden := []string{
+		"search_text",
+		"is_male",
+		"created_at", "created_by",
+		"updated_at", "updated_by",
+		"deleted_at", "deleted_by",
+	}
+	for _, column := range hidden {
+		if _, exposed := row[column]; exposed {
+			t.Fatalf("column %q must not be exposed in the response", column)
+		}
+	}
+	if got := row["jenis_kelamin"]; got != "pria" {
+		t.Fatalf("jenis_kelamin = %v, want pria", got)
 	}
 }
 

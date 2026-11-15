@@ -20,6 +20,9 @@ const (
 	maxAlamatLength = 500
 	minSearchLength = 3
 	maxSearchLength = 100
+
+	jenisKelaminPria   = "pria"
+	jenisKelaminWanita = "wanita"
 )
 
 // PegawaiInput is the raw payload accepted from the HTTP layer. Values are
@@ -29,7 +32,7 @@ type PegawaiInput struct {
 	NIP          string
 	TanggalLahir string
 	Alamat       string
-	IsMale       *bool
+	JenisKelamin string
 }
 
 // PegawaiService contains pegawai business rules.
@@ -113,8 +116,9 @@ func buildPegawai(in PegawaiInput) (*model.Pegawai, error) {
 		return nil, err
 	}
 
-	if in.IsMale == nil {
-		return nil, apperr.Validation("is_male wajib diisi")
+	isMale, err := parseJenisKelamin(in.JenisKelamin)
+	if err != nil {
+		return nil, err
 	}
 
 	return &model.Pegawai{
@@ -122,7 +126,7 @@ func buildPegawai(in PegawaiInput) (*model.Pegawai, error) {
 		NIP:          nip,
 		TanggalLahir: tanggalLahir,
 		Alamat:       alamat,
-		IsMale:       *in.IsMale,
+		IsMale:       isMale,
 	}, nil
 }
 
@@ -144,4 +148,26 @@ func parseTanggalLahir(value string) (string, error) {
 	}
 
 	return t.Format(dateLayout), nil
+}
+
+// parseJenisKelamin maps the API label to the stored boolean.
+func parseJenisKelamin(value string) (bool, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "":
+		return false, apperr.Validation("jenis_kelamin wajib diisi")
+	case jenisKelaminPria:
+		return true, nil
+	case jenisKelaminWanita:
+		return false, nil
+	default:
+		return false, apperr.Validation("jenis_kelamin harus pria atau wanita")
+	}
+}
+
+// FormatJenisKelamin maps the stored boolean to the API label.
+func FormatJenisKelamin(isMale bool) string {
+	if isMale {
+		return jenisKelaminPria
+	}
+	return jenisKelaminWanita
 }
