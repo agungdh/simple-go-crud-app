@@ -16,6 +16,7 @@ Panduan untuk agent yang bekerja di repo ini.
 | Audit | Wajib `model.Base`; isi via `MarkCreated/MarkUpdated/MarkDeleted`; jangan expose ke API |
 | Soft delete | `model.Active(q)` + `UPDATE deleted_at/deleted_by`; unik = partial index `WHERE deleted_at IS NULL` |
 | Query | **Jangan `SELECT *`**; pakai `Column(model.PublicColumns(...)...)` |
+| Cari | `search_text` (VIRTUAL) + FTS5 trigram `<tabel>_fts`; `?q=` ≥3 karakter pakai index, <3 karakter fallback scan |
 | FK | `ON UPDATE RESTRICT ON DELETE RESTRICT`, tipe `BIGINT`, beri index |
 | Error | Unique/FK → `409`; format `{"data": ...}` / `{"error": "..."}`; detail internal jangan dibocorkan |
 | Test | DB sementara; tiap endpoint: happy path + error |
@@ -220,23 +221,25 @@ CREATE UNIQUE INDEX ux_items_kode_active
     WHERE deleted_at IS NULL;
 ```
 
-Index biasa hanya untuk FK dan partial unique di atas. Jangan membuat index
-untuk kolom pencarian.
+Index biasa hanya untuk FK dan partial unique di atas. Pencarian memakai FTS5
+trigram (lihat [Pencarian](#pencarian-trigram)); jangan membuat index B-tree
+biasa untuk kolom pencarian.
 
 Contoh DDL tabel:
 
 ```sql
 CREATE TABLE items (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    bidang_id  BIGINT NOT NULL
-               REFERENCES bidang(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
-    kode       TEXT NOT NULL,
-    created_at INTEGER,
-    created_by BIGINT,
-    updated_at INTEGER,
-    updated_by BIGINT,
-    deleted_at INTEGER,
-    deleted_by BIGINT
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    bidang_id   BIGINT NOT NULL
+                REFERENCES bidang(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+    kode        TEXT NOT NULL,
+    search_text TEXT GENERATED ALWAYS AS (kode) VIRTUAL,
+    created_at  INTEGER,
+    created_by  BIGINT,
+    updated_at  INTEGER,
+    updated_by  BIGINT,
+    deleted_at  INTEGER,
+    deleted_by  BIGINT
 );
 
 CREATE INDEX idx_items_bidang_id ON items (bidang_id);
@@ -246,6 +249,42 @@ CREATE UNIQUE INDEX ux_items_kode_active
     WHERE deleted_at IS NULL;
 ```
 
+#### Pencarian (trigram)
+
+Setiap tabel wajib punya kolom `search_text` dan index FTS5 trigram.
+
+- `search_text` adalah **generated column `VIRTUAL`** berisi gabungan semua
+  kolom dengan pemisah spasi: **semua kolom kecuali `id`, kolom FK, dan kolom
+  audit**. Bungkus kolom nullable dengan `coalesce(kolom, '')`; kolom non-teks
+  di-`CAST(... AS TEXT)`.
+- Jangan mendeklarasikan `search_text` di model Bun dan jangan pernah
+  mengirimnya ke API. Kolom ini hanya untuk pencarian.
+- Index memakai **FTS5 trigram external content**, jadi teks tidak disimpan dua
+  kali:
+
+```sql
+ALTER TABLE items ADD COLUMN search_text TEXT
+    GENERATED ALWAYS AS (kode) VIRTUAL;
+
+CREATE VIRTUAL TABLE items_fts USING fts5(
+    search_text,
+    content='items',
+    content_rowid='id',
+    tokenize='trigram'
+);
+```
+
+- Sinkronkan lewat trigger `AFTER INSERT`, `AFTER DELETE`, dan `AFTER UPDATE`
+  dengan `WHEN old.search_text IS NOT new.search_text`. Isi index untuk baris
+  lama dengan `INSERT INTO items_fts (items_fts) VALUES ('rebuild')`.
+- Query: `JOIN items_fts AS f ON f.rowid = i.id` lalu
+  `WHERE f.search_text MATCH ?`. Tetap filter `deleted_at IS NULL` di tabel
+  utama; baris soft delete boleh tertinggal di index.
+- Trigram hanya cocok untuk **minimal 3 karakter**. Query lebih pendek memakai
+  `instr(lower(search_text), lower(?)) > 0` (scan).
+- Bungkus input user sebagai frasa FTS (`"..."`, escape `"` menjadi `""`) agar
+  operator `AND`/`OR`/`NOT`/`*` diperlakukan sebagai teks biasa.
+
 ### Migration (goose)
 
 - Semua perubahan skema lewat file migration baru; jangan mengubah migration
@@ -253,9 +292,13 @@ CREATE UNIQUE INDEX ux_items_kode_active
 - Format file: `<timestamp>_<nama>.sql` (hasil `goose create`).
 - Wajib punya blok `-- +goose Up` dan `-- +goose Down`.
 - Migration harus idempoten terhadap urutan eksekusi dari awal.
+- Trigger atau blok multi-statement wajib dibungkus
+  `-- +goose StatementBegin` / `-- +goose StatementEnd`; tanpa itu goose
+  memecah statement di dalam `BEGIN ... END`.
 - Perhatikan batasan SQLite: `ALTER TABLE` terbatas, dan
   `ADD COLUMN ... NOT NULL REFERENCES` tidak didukung. Untuk perubahan seperti
-  itu, buat tabel baru lalu salin data di dalam migration.
+  itu, buat tabel baru lalu salin data di dalam migration. `ADD COLUMN`
+  generated `VIRTUAL` didukung dan tidak menulis ulang tabel.
 
 ### API
 
@@ -266,6 +309,8 @@ CREATE UNIQUE INDEX ux_items_kode_active
   maupun request. Gunakan DTO terpisah atau `json:"-"`.
 - Jangan bocorkan detail error internal ke klien; log di server.
 - Batasi ukuran body request.
+- Pencarian lewat query param `?q=`: trim input, batasi panjang (mis. 100
+  karakter → `422` lebih dari itu), dan jangan expose `search_text` di response.
 
 ### Testing
 

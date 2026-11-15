@@ -18,6 +18,7 @@ const (
 	maxNamaLength   = 150
 	maxNIPLength    = 50
 	maxAlamatLength = 500
+	maxSearchLength = 100
 )
 
 // PegawaiInput is the raw payload accepted from the HTTP layer. Values are
@@ -39,8 +40,12 @@ func NewPegawaiService(repo *repository.PegawaiRepository) *PegawaiService {
 	return &PegawaiService{repo: repo}
 }
 
-func (s *PegawaiService) List(ctx context.Context) ([]model.Pegawai, error) {
-	return s.repo.List(ctx)
+func (s *PegawaiService) List(ctx context.Context, query string) ([]model.Pegawai, error) {
+	query = strings.TrimSpace(query)
+	if utf8.RuneCountInString(query) > maxSearchLength {
+		return nil, apperr.Validation(fmt.Sprintf("q maksimal %d karakter", maxSearchLength))
+	}
+	return s.repo.List(ctx, query)
 }
 
 func (s *PegawaiService) Get(ctx context.Context, id int64) (*model.Pegawai, error) {

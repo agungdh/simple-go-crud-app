@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 
 	"simple-go-crud-app/internal/database"
@@ -308,6 +310,134 @@ func TestPegawaiInvalidJSON(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
+func listPegawai(t *testing.T, srv http.Handler, query string) []pegawaiData {
+	t.Helper()
+
+	path := "/pegawai"
+	if query != "" {
+		path += "?q=" + url.QueryEscape(query)
+	}
+
+	rec := doRequest(t, srv, http.MethodGet, path, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list %q status = %d, body = %s", query, rec.Code, rec.Body.String())
+	}
+
+	var list struct {
+		Data []pegawaiData `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
+		t.Fatalf("decode list: %v", err)
+	}
+	return list.Data
+}
+
+func TestPegawaiSearch(t *testing.T) {
+	srv := newTestServer(t)
+
+	createPegawai(t, srv)
+
+	second := validPayload()
+	second["nama"] = "Siti Aminah"
+	second["nip"] = "199001012020011002"
+	second["alamat"] = "Jl. Melati No. 2, Bandung"
+	rec := doRequest(t, srv, http.MethodPost, "/pegawai", second)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("second create status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	tests := []struct {
+		name  string
+		query string
+		want  int
+	}{
+		{name: "matches nama", query: "budi", want: 1},
+		{name: "matches partial alamat", query: "merdeka", want: 1},
+		{name: "case insensitive", query: "BUDI", want: 1},
+		{name: "short query fallback", query: "si", want: 1},
+		{name: "no match", query: "zzz", want: 0},
+		{name: "fts operators are literal", query: "budi AND siti", want: 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := len(listPegawai(t, srv, tt.query)); got != tt.want {
+				t.Fatalf("search %q returned %d rows, want %d", tt.query, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPegawaiSearchHidesSearchText(t *testing.T) {
+	srv := newTestServer(t)
+	createPegawai(t, srv)
+
+	rec := doRequest(t, srv, http.MethodGet, "/pegawai?q=budi", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Data []map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(payload.Data) != 1 {
+		t.Fatalf("len(data) = %d, want 1", len(payload.Data))
+	}
+	if _, exposed := payload.Data[0]["search_text"]; exposed {
+		t.Fatal("search_text must not be exposed in the response")
+	}
+}
+
+func TestPegawaiSearchReindexedOnUpdate(t *testing.T) {
+	srv := newTestServer(t)
+
+	created := createPegawai(t, srv)
+
+	updatePayload := validPayload()
+	updatePayload["alamat"] = "Jl. Kenanga No. 9, Bogor"
+	rec := doRequest(t, srv, http.MethodPut, "/pegawai/"+itoa(created.ID), updatePayload)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("update status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	if got := len(listPegawai(t, srv, "kenanga")); got != 1 {
+		t.Fatalf("search new alamat returned %d rows, want 1", got)
+	}
+	if got := len(listPegawai(t, srv, "merdeka")); got != 0 {
+		t.Fatalf("search old alamat returned %d rows, want 0", got)
+	}
+}
+
+func TestPegawaiSearchExcludesDeleted(t *testing.T) {
+	srv := newTestServer(t)
+
+	created := createPegawai(t, srv)
+
+	rec := doRequest(t, srv, http.MethodDelete, "/pegawai/"+itoa(created.ID), nil)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("delete status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	if got := len(listPegawai(t, srv, "budi")); got != 0 {
+		t.Fatalf("search after delete returned %d rows, want 0", got)
+	}
+}
+
+func TestPegawaiSearchTooLong(t *testing.T) {
+	srv := newTestServer(t)
+
+	rec := doRequest(t, srv, http.MethodGet, "/pegawai?q="+url.QueryEscape(strings.Repeat("a", 101)), nil)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422, body = %s", rec.Code, rec.Body.String())
+	}
+	if decodeResponse(t, rec).Error == "" {
+		t.Fatal("error message is empty")
 	}
 }
 

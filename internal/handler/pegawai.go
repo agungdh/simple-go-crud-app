@@ -54,7 +54,7 @@ type pegawaiResponse struct {
 }
 
 func (h *PegawaiHandler) List(w http.ResponseWriter, r *http.Request) {
-	items, err := h.svc.List(r.Context())
+	items, err := h.svc.List(r.Context(), r.URL.Query().Get("q"))
 	if err != nil {
 		h.writeError(w, err)
 		return

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/uptrace/bun"
 
@@ -22,8 +23,13 @@ func NewPegawaiRepository(db *bun.DB) *PegawaiRepository {
 	return &PegawaiRepository{db: db}
 }
 
-// List returns all active pegawai ordered by id.
-func (r *PegawaiRepository) List(ctx context.Context) ([]model.Pegawai, error) {
+// trigramMinRunes is the shortest query the FTS5 trigram tokenizer can match.
+const trigramMinRunes = 3
+
+// List returns active pegawai ordered by id. When query is not empty, only
+// rows whose search_text contains it are returned. Queries of at least three
+// characters use the trigram index; shorter ones fall back to a table scan.
+func (r *PegawaiRepository) List(ctx context.Context, query string) ([]model.Pegawai, error) {
 	items := make([]model.Pegawai, 0)
 
 	q := r.db.NewSelect().
@@ -32,10 +38,26 @@ func (r *PegawaiRepository) List(ctx context.Context) ([]model.Pegawai, error) {
 		Order("p.id ASC")
 	q = model.Active(q)
 
+	switch {
+	case query == "":
+	case utf8.RuneCountInString(query) < trigramMinRunes:
+		// The trigram tokenizer cannot match fewer than three characters.
+		q = q.Where("instr(lower(p.search_text), lower(?)) > 0", query)
+	default:
+		q = q.Join("JOIN pegawai_fts AS f ON f.rowid = p.id").
+			Where("f.search_text MATCH ?", ftsPhrase(query))
+	}
+
 	if err := q.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("list pegawai: %w", err)
 	}
 	return items, nil
+}
+
+// ftsPhrase wraps user input in a quoted FTS5 phrase so that operators such as
+// AND, OR, NOT, and * are matched as literal text.
+func ftsPhrase(query string) string {
+	return `"` + strings.ReplaceAll(query, `"`, `""`) + `"`
 }
 
 // GetByID returns one active pegawai or apperr.ErrNotFound.
