@@ -8,14 +8,12 @@ DB_PATH   ?= persistence/db/app.db
 # Build goose with SQLite support only; the project does not use other drivers.
 GOOSE_TAGS ?= no_clickhouse no_libsql no_mssql no_azuresql no_mysql no_postgres no_vertica no_ydb
 GOOSE      ?= go run -tags '$(GOOSE_TAGS)' github.com/pressly/goose/v3/cmd/goose@v3.30.0
-# OpenAPI contract is the source of truth; generate Go types from it.
-OAPI_CODEGEN ?= go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.8.2
 GO_FILES  := $(shell find . -type f -name '*.go' -not -path './vendor/*')
 
 .DEFAULT_GOAL := help
 
 .PHONY: help run build test vet fmt fmt-check tidy check \
-	api-gen api-check \
+	api-validate \
 	migrate-up migrate-down migrate-status migrate-create clean
 
 help: ## Tampilkan daftar target
@@ -50,13 +48,8 @@ tidy: ## Rapikan go.mod dan go.sum
 
 check: fmt-check vet test ## Jalankan fmt-check, vet, dan test
 
-api-gen: ## Generate tipe/route Go dari api/openapi.yaml
-	$(OAPI_CODEGEN) -config api/oapi-codegen.yaml api/openapi.yaml
-
-api-check: ## Gagal bila kode generated tidak sesuai kontrak
-	$(OAPI_CODEGEN) -config api/oapi-codegen.yaml api/openapi.yaml
-	@git diff --exit-code -- internal/api/api.gen.go || \
-		{ echo "internal/api/api.gen.go belum diperbarui; jalankan make api-gen"; exit 1; }
+api-validate: ## Validasi kontrak OpenAPI dan kecocokan DTO
+	go test ./api ./internal/dto
 
 migrate-up: ## Jalankan semua migration
 	$(GOOSE) -dir migrations sqlite3 $(DB_PATH) up

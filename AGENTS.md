@@ -10,7 +10,8 @@ Panduan untuk agent yang bekerja di repo ini.
 | Cek cepat | `make help` (daftar target), `make run`, `make check` (wajib sebelum selesai) |
 | DB | `persistence/db/app.db`, WAL, `synchronous=NORMAL`, `busy_timeout`, `foreign_keys=ON`, pool kecil |
 | Migration | `make migrate-create NAME=nama` → isi Up/Down → `make migrate-up` |
-| Layer | `main.go` wiring; `internal/` handler → service → repository → model; tidak campur |
+| Layer | `main.go` wiring; `internal/` handler → service → repository → model, DTO di `internal/dto`; tidak campur |
+| Kontrak | `api/openapi.yaml` sumber kebenaran; DTO tangan di `internal/dto`; `make api-validate` |
 | ID | `INTEGER PRIMARY KEY AUTOINCREMENT`, di Go `int64` |
 | Waktu | Audit `*_at` = epoch **ms UTC**; tanggal/waktu bisnis = `TEXT` ISO-8601 (`YYYY-MM-DD`) |
 | Audit | Wajib `model.Base`; isi via `MarkCreated/MarkUpdated/MarkDeleted`; jangan expose ke API |
@@ -55,8 +56,7 @@ melihat daftar target.
 | `make fmt` | `gofmt -w .` | Format semua file Go |
 | `make fmt-check` | `gofmt -l .` (harus kosong) | Cek format tanpa mengubah file |
 | `make tidy` | `go mod tidy` | Rapikan `go.mod` dan `go.sum` |
-| `make api-gen` | `go run ... oapi-codegen -config api/oapi-codegen.yaml api/openapi.yaml` | Generate tipe/route Go dari kontrak |
-| `make api-check` | `make api-gen` + `git diff --exit-code` | Gagal bila kode generated tidak sesuai kontrak |
+| `make api-validate` | `go test ./api ./internal/dto` | Validasi kontrak + kecocokan DTO |
 | `make check` | `make fmt-check vet test` | Format, vet, dan test sekaligus |
 | `make clean` | `rm -rf bin` | Hapus hasil build |
 
@@ -95,9 +95,10 @@ Selalu jalankan `make check` (fmt, vet, test) sebelum selesai.
 
 - `main.go` — entrypoint, wiring dependency, start server.
 - `internal/` — kode aplikasi (handler, service, repository, model, router).
-- `api/` — kontrak OpenAPI (`openapi.yaml`) dan konfigurasi `oapi-codegen`;
-  sumber kebenaran bentuk API.
-- `internal/api/` — kode hasil generate dari kontrak; jangan diedit manual.
+- `api/` — kontrak OpenAPI (`openapi.yaml`) beserta test validasinya; sumber
+  kebenaran bentuk API.
+- `internal/dto/` — struct request/response yang ditulis tangan dan harus
+  sesuai kontrak; tidak ada kode generated.
 - `migrations/` — file migration goose.
 - `persistence/db/` — database runtime (tidak di-commit); hanya `.gitkeep`.
 - `Makefile` — target perintah harian; sumber kebenaran daftar perintah.
@@ -340,13 +341,16 @@ CREATE VIRTUAL TABLE items_fts USING fts5(
 #### Kontrak API (contract-first)
 
 - `api/openapi.yaml` adalah **sumber kebenaran**. Ubah kontrak dulu, baru kode.
-- Setelah mengubah kontrak: `make api-gen`, lalu sesuaikan handler/service.
-- Tipe request/response di handler memakai tipe hasil generate di
-  `internal/api`; jangan menulis DTO manual yang menduplikasi kontrak.
-- Nama method generated mengikuti `operationId` (mis. `listBidang` →
-  `ListBidang`). Router didaftarkan lewat `api.HandlerFromMux`.
-- Jangan mengedit `internal/api/api.gen.go` manual; file itu hasil `api-gen`.
-- `make api-check` dijalankan sebelum merge agar kode generated tidak basi.
+- Tidak ada codegen. DTO ditulis tangan di `internal/dto` dan wajib cocok
+  dengan schema di kontrak; `make api-validate` memvalidasi kecocokannya.
+- Nama field JSON di DTO harus sama persis dengan kontrak. Untuk tipe yang
+  berbeda antara request dan response (mis. `jenis_kelamin`), buat dua tipe
+  terpisah, jangan dipaksa satu.
+- Handler nanti memakai tipe `internal/dto`, bukan struct anonim atau `map`.
+- `make api-validate` dijalankan sebelum merge; test yang sama juga jalan
+  lewat `make check`.
+- Perubahan kontrak yang mengubah bentuk response = perubahan breaking untuk
+  FE; naikkan `info.version` dan catat di deskripsi operasi terkait.
 - Kontrak wajib mendokumentasikan: envelope `data`/`error`, status `400`,
   `404`, `409`, `413`, `422`, `500` yang benar-benar dipakai endpoint, dan
   larangan mengekspos kolom audit/internal.

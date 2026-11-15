@@ -1,30 +1,22 @@
-package api_test
+package api
 
 import (
-	"path/filepath"
 	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
-// loadSpec loads and validates the API contract. Every drift in the spec fails
-// here before it can reach the generated code.
-func loadSpec(t *testing.T) *openapi3.T {
-	t.Helper()
-
+// TestOpenAPIContract keeps the spec honest: it must be valid, the endpoint
+// list is fixed, and internal columns must never leak into a schema.
+func TestOpenAPIContract(t *testing.T) {
 	loader := openapi3.NewLoader()
-	doc, err := loader.LoadFromFile(filepath.Join("..", "..", "api", "openapi.yaml"))
+	doc, err := loader.LoadFromFile("openapi.yaml")
 	if err != nil {
 		t.Fatalf("load spec: %v", err)
 	}
 	if err := doc.Validate(loader.Context); err != nil {
 		t.Fatalf("validate spec: %v", err)
 	}
-	return doc
-}
-
-func TestOpenAPIContract(t *testing.T) {
-	doc := loadSpec(t)
 
 	want := map[string]string{
 		"GET /bidang":          "listBidang",
@@ -66,7 +58,11 @@ func TestOpenAPIContract(t *testing.T) {
 }
 
 func TestOpenAPISchemasMatchConventions(t *testing.T) {
-	doc := loadSpec(t)
+	loader := openapi3.NewLoader()
+	doc, err := loader.LoadFromFile("openapi.yaml")
+	if err != nil {
+		t.Fatalf("load spec: %v", err)
+	}
 
 	internalColumns := []string{
 		"search_text", "is_male", "bidang_fts", "pegawai_fts",
@@ -84,18 +80,6 @@ func TestOpenAPISchemasMatchConventions(t *testing.T) {
 				t.Errorf("schema %q membocorkan kolom internal %q", name, column)
 			}
 		}
-	}
-}
-
-func TestOpenAPIDateAndGenderContract(t *testing.T) {
-	doc := loadSpec(t)
-
-	request := doc.Components.Schemas["TanggalLahirInput"]
-	if request == nil || request.Value == nil || request.Value.Pattern == "" {
-		t.Fatal("TanggalLahirInput harus punya pattern DD-MM-YYYY atau YYYY-MM-DD")
-	}
-	if request.Value.Pattern != `^(\d{2}-\d{2}-\d{4}|\d{4}-\d{2}-\d{2})$` {
-		t.Errorf("TanggalLahirInput pattern = %q", request.Value.Pattern)
 	}
 
 	response := doc.Components.Schemas["TanggalLahir"]

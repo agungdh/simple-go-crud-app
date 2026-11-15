@@ -4,8 +4,6 @@ go 1.27.4
 
 require (
 	github.com/getkin/kin-openapi v0.142.0
-	github.com/go-chi/chi/v5 v5.5.0
-	github.com/oapi-codegen/runtime v1.9.0
 	github.com/pressly/goose/v3 v3.30.0
 	github.com/uptrace/bun v1.3.0
 	github.com/uptrace/bun/dialect/sqlitedialect v1.3.0
@@ -13,7 +11,6 @@ require (
 )
 
 require (
-	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/go-openapi/jsonpointer v0.22.5 // indirect
 	github.com/go-openapi/swag/jsonname v0.25.5 // indirect
