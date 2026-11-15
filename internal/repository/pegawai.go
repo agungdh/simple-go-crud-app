@@ -77,7 +77,7 @@ func (r *PegawaiRepository) Create(ctx context.Context, pegawai *model.Pegawai) 
 		Returning("id").
 		Exec(ctx)
 	if err != nil {
-		if isUniqueViolation(err) {
+		if isUniqueViolation(err) || isForeignKeyViolation(err) {
 			return apperr.ErrConflict
 		}
 		return fmt.Errorf("create pegawai: %w", err)
@@ -89,12 +89,12 @@ func (r *PegawaiRepository) Create(ctx context.Context, pegawai *model.Pegawai) 
 func (r *PegawaiRepository) Update(ctx context.Context, pegawai *model.Pegawai) error {
 	res, err := r.db.NewUpdate().
 		Model(pegawai).
-		Column("nama", "nip", "tanggal_lahir", "alamat", "is_male", "updated_at", "updated_by").
+		Column("bidang_id", "nama", "nip", "tanggal_lahir", "alamat", "is_male", "updated_at", "updated_by").
 		WherePK().
 		Where("deleted_at IS NULL").
 		Exec(ctx)
 	if err != nil {
-		if isUniqueViolation(err) {
+		if isUniqueViolation(err) || isForeignKeyViolation(err) {
 			return apperr.ErrConflict
 		}
 		return fmt.Errorf("update pegawai %d: %w", pegawai.ID, err)
@@ -133,8 +133,4 @@ func (r *PegawaiRepository) Delete(ctx context.Context, id, actorID int64) error
 		return apperr.ErrNotFound
 	}
 	return nil
-}
-
-func isUniqueViolation(err error) bool {
-	return strings.Contains(strings.ToLower(err.Error()), "unique constraint failed")
 }

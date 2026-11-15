@@ -10,7 +10,7 @@ import (
 )
 
 // New builds the application router.
-func New(pegawai *handler.PegawaiHandler) http.Handler {
+func New(pegawai *handler.PegawaiHandler, bidang *handler.BidangHandler) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
@@ -25,6 +25,7 @@ func New(pegawai *handler.PegawaiHandler) http.Handler {
 	})
 
 	pegawai.Routes(r)
+	bidang.Routes(r)
 
 	return r
 }

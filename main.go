@@ -37,13 +37,17 @@ func main() {
 		log.Fatalf("migrate database: %v", err)
 	}
 
+	bidangRepo := repository.NewBidangRepository(db)
+	bidangSvc := service.NewBidangService(bidangRepo)
+	bidangHandler := handler.NewBidangHandler(bidangSvc)
+
 	pegawaiRepo := repository.NewPegawaiRepository(db)
 	pegawaiSvc := service.NewPegawaiService(pegawaiRepo)
 	pegawaiHandler := handler.NewPegawaiHandler(pegawaiSvc)
 
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           router.New(pegawaiHandler),
+		Handler:           router.New(pegawaiHandler, bidangHandler),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      15 * time.Second,

@@ -22,6 +22,7 @@ import (
 
 type pegawaiData struct {
 	ID           int64  `json:"id"`
+	BidangID     int64  `json:"bidang_id"`
 	Nama         string `json:"nama"`
 	NIP          string `json:"nip"`
 	TanggalLahir string `json:"tanggal_lahir"`
@@ -51,9 +52,12 @@ func newTestServer(t *testing.T) http.Handler {
 		t.Fatalf("migrate: %v", err)
 	}
 
+	bidangRepo := repository.NewBidangRepository(db)
+	bidangSvc := service.NewBidangService(bidangRepo)
+
 	repo := repository.NewPegawaiRepository(db)
 	svc := service.NewPegawaiService(repo)
-	return router.New(handler.NewPegawaiHandler(svc))
+	return router.New(handler.NewPegawaiHandler(svc), handler.NewBidangHandler(bidangSvc))
 }
 
 func doRequest(t *testing.T, srv http.Handler, method, path string, body any) *httptest.ResponseRecorder {
@@ -87,8 +91,9 @@ func decodeResponse(t *testing.T, rec *httptest.ResponseRecorder) apiResponse {
 	return res
 }
 
-func validPayload() map[string]any {
+func validPayload(bidangID int64) map[string]any {
 	return map[string]any{
+		"bidang_id":     bidangID,
 		"nama":          "Budi Santoso",
 		"nip":           "199001012020011001",
 		"tanggal_lahir": "1990-01-01",
@@ -100,7 +105,8 @@ func validPayload() map[string]any {
 func createPegawai(t *testing.T, srv http.Handler) pegawaiData {
 	t.Helper()
 
-	rec := doRequest(t, srv, http.MethodPost, "/pegawai", validPayload())
+	bidang := createBidang(t, srv)
+	rec := doRequest(t, srv, http.MethodPost, "/pegawai", validPayload(bidang.ID))
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create status = %d, body = %s", rec.Code, rec.Body.String())
 	}
@@ -138,6 +144,10 @@ func TestPegawaiCRUD(t *testing.T) {
 		t.Fatalf("list length = %d, want 1", len(list.Data))
 	}
 
+	if created.BidangID <= 0 {
+		t.Fatalf("created bidang_id = %d, want > 0", created.BidangID)
+	}
+
 	path := "/pegawai/" + itoa(created.ID)
 
 	rec = doRequest(t, srv, http.MethodGet, path, nil)
@@ -148,7 +158,7 @@ func TestPegawaiCRUD(t *testing.T) {
 		t.Fatalf("get id = %d, want %d", got.ID, created.ID)
 	}
 
-	updatePayload := validPayload()
+	updatePayload := validPayload(created.BidangID)
 	updatePayload["nama"] = "Budi Santoso Baru"
 	updatePayload["tanggal_lahir"] = "03-02-1991"
 	updatePayload["jenis_kelamin"] = "wanita"
@@ -180,6 +190,7 @@ func TestPegawaiCRUD(t *testing.T) {
 
 func TestCreatePegawaiValidation(t *testing.T) {
 	srv := newTestServer(t)
+	bidang := createBidang(t, srv)
 
 	tests := []struct {
 		name       string
@@ -217,6 +228,11 @@ func TestCreatePegawaiValidation(t *testing.T) {
 			wantStatus: http.StatusBadRequest,
 		},
 		{
+			name:       "missing bidang_id",
+			mutate:     func(p map[string]any) { delete(p, "bidang_id") },
+			wantStatus: http.StatusUnprocessableEntity,
+		},
+		{
 			name:       "unknown field",
 			mutate:     func(p map[string]any) { p["created_at"] = 123 },
 			wantStatus: http.StatusBadRequest,
@@ -225,7 +241,7 @@ func TestCreatePegawaiValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			payload := validPayload()
+			payload := validPayload(bidang.ID)
 			tt.mutate(payload)
 
 			rec := doRequest(t, srv, http.MethodPost, "/pegawai", payload)
@@ -239,17 +255,26 @@ func TestCreatePegawaiValidation(t *testing.T) {
 	}
 }
 
+func TestCreatePegawaiUnknownBidang(t *testing.T) {
+	srv := newTestServer(t)
+
+	rec := doRequest(t, srv, http.MethodPost, "/pegawai", validPayload(999))
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409, body = %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestPegawaiNIPConflict(t *testing.T) {
 	srv := newTestServer(t)
 
 	created := createPegawai(t, srv)
 
-	rec := doRequest(t, srv, http.MethodPost, "/pegawai", validPayload())
+	rec := doRequest(t, srv, http.MethodPost, "/pegawai", validPayload(created.BidangID))
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("duplicate create status = %d, want 409, body = %s", rec.Code, rec.Body.String())
 	}
 
-	secondPayload := validPayload()
+	secondPayload := validPayload(created.BidangID)
 	secondPayload["nip"] = "199001012020011002"
 	secondPayload["nama"] = "Siti Aminah"
 	rec = doRequest(t, srv, http.MethodPost, "/pegawai", secondPayload)
@@ -258,7 +283,7 @@ func TestPegawaiNIPConflict(t *testing.T) {
 	}
 	second := decodeResponse(t, rec).Data
 
-	updatePayload := validPayload()
+	updatePayload := validPayload(created.BidangID)
 	updatePayload["nip"] = created.NIP
 	rec = doRequest(t, srv, http.MethodPut, "/pegawai/"+itoa(second.ID), updatePayload)
 	if rec.Code != http.StatusConflict {
@@ -276,7 +301,7 @@ func TestPegawaiNIPReusableAfterDelete(t *testing.T) {
 		t.Fatalf("delete status = %d, body = %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doRequest(t, srv, http.MethodPost, "/pegawai", validPayload())
+	rec = doRequest(t, srv, http.MethodPost, "/pegawai", validPayload(created.BidangID))
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("recreate status = %d, want 201, body = %s", rec.Code, rec.Body.String())
 	}
@@ -284,13 +309,14 @@ func TestPegawaiNIPReusableAfterDelete(t *testing.T) {
 
 func TestPegawaiNotFound(t *testing.T) {
 	srv := newTestServer(t)
+	bidang := createBidang(t, srv)
 
 	rec := doRequest(t, srv, http.MethodGet, "/pegawai/999", nil)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("get status = %d, want 404", rec.Code)
 	}
 
-	rec = doRequest(t, srv, http.MethodPut, "/pegawai/999", validPayload())
+	rec = doRequest(t, srv, http.MethodPut, "/pegawai/999", validPayload(bidang.ID))
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("update status = %d, want 404", rec.Code)
 	}
@@ -348,9 +374,9 @@ func listPegawai(t *testing.T, srv http.Handler, query string) []pegawaiData {
 func TestPegawaiSearch(t *testing.T) {
 	srv := newTestServer(t)
 
-	createPegawai(t, srv)
+	created := createPegawai(t, srv)
 
-	second := validPayload()
+	second := validPayload(created.BidangID)
 	second["nama"] = "Siti Aminah"
 	second["nip"] = "199001012020011002"
 	second["tanggal_lahir"] = "1985-05-17"
@@ -447,7 +473,7 @@ func TestPegawaiSearchReindexedOnUpdate(t *testing.T) {
 
 	created := createPegawai(t, srv)
 
-	updatePayload := validPayload()
+	updatePayload := validPayload(created.BidangID)
 	updatePayload["alamat"] = "Jl. Kenanga No. 9, Bogor"
 	rec := doRequest(t, srv, http.MethodPut, "/pegawai/"+itoa(created.ID), updatePayload)
 	if rec.Code != http.StatusOK {

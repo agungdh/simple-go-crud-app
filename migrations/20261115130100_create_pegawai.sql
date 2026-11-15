@@ -1,6 +1,8 @@
 -- +goose Up
 CREATE TABLE pegawai (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    bidang_id     BIGINT NOT NULL
+                  REFERENCES bidang(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
     nama          TEXT NOT NULL,
     nip           TEXT NOT NULL,
     tanggal_lahir TEXT NOT NULL,
@@ -22,6 +24,8 @@ CREATE TABLE pegawai (
     deleted_at    INTEGER,
     deleted_by    BIGINT
 );
+
+CREATE INDEX idx_pegawai_bidang_id ON pegawai (bidang_id);
 
 CREATE UNIQUE INDEX ux_pegawai_nip_active
     ON pegawai (nip)

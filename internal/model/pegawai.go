@@ -11,6 +11,7 @@ type Pegawai struct {
 
 	Base
 
+	BidangID     int64  `bun:"bidang_id,notnull"`
 	Nama         string `bun:"nama,notnull"`
 	NIP          string `bun:"nip,notnull"`
 	TanggalLahir string `bun:"tanggal_lahir,notnull"`

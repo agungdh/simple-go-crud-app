@@ -37,6 +37,7 @@ func (h *PegawaiHandler) Routes(r chi.Router) {
 }
 
 type pegawaiRequest struct {
+	BidangID     int64  `json:"bidang_id"`
 	Nama         string `json:"nama"`
 	NIP          string `json:"nip"`
 	TanggalLahir string `json:"tanggal_lahir"`
@@ -46,6 +47,7 @@ type pegawaiRequest struct {
 
 type pegawaiResponse struct {
 	ID           int64  `json:"id"`
+	BidangID     int64  `json:"bidang_id"`
 	Nama         string `json:"nama"`
 	NIP          string `json:"nip"`
 	TanggalLahir string `json:"tanggal_lahir"`
@@ -134,7 +136,7 @@ func (h *PegawaiHandler) writeError(w http.ResponseWriter, err error) {
 	case errors.Is(err, apperr.ErrNotFound):
 		writeError(w, http.StatusNotFound, "pegawai tidak ditemukan")
 	case errors.Is(err, apperr.ErrConflict):
-		writeError(w, http.StatusConflict, "NIP sudah terdaftar")
+		writeError(w, http.StatusConflict, "NIP sudah terdaftar atau bidang tidak ditemukan")
 	default:
 		log.Printf("pegawai handler: %v", err)
 		writeError(w, http.StatusInternalServerError, "terjadi kesalahan pada server")
@@ -177,6 +179,7 @@ func decodeRequest(w http.ResponseWriter, r *http.Request) (pegawaiRequest, bool
 
 func toInput(req pegawaiRequest) service.PegawaiInput {
 	return service.PegawaiInput{
+		BidangID:     req.BidangID,
 		Nama:         req.Nama,
 		NIP:          req.NIP,
 		TanggalLahir: req.TanggalLahir,
@@ -188,6 +191,7 @@ func toInput(req pegawaiRequest) service.PegawaiInput {
 func toResponse(pegawai *model.Pegawai) pegawaiResponse {
 	return pegawaiResponse{
 		ID:           pegawai.ID,
+		BidangID:     pegawai.BidangID,
 		Nama:         pegawai.Nama,
 		NIP:          pegawai.NIP,
 		TanggalLahir: service.FormatTanggalLahir(pegawai.TanggalLahir),

@@ -29,6 +29,7 @@ const (
 // PegawaiInput is the raw payload accepted from the HTTP layer. Values are
 // validated and normalized by the service.
 type PegawaiInput struct {
+	BidangID     int64
 	Nama         string
 	NIP          string
 	TanggalLahir string
@@ -98,6 +99,8 @@ func buildPegawai(in PegawaiInput) (*model.Pegawai, error) {
 	alamat := strings.TrimSpace(in.Alamat)
 
 	switch {
+	case in.BidangID <= 0:
+		return nil, apperr.Validation("bidang_id wajib diisi")
 	case nama == "":
 		return nil, apperr.Validation("nama wajib diisi")
 	case utf8.RuneCountInString(nama) > maxNamaLength:
@@ -123,6 +126,7 @@ func buildPegawai(in PegawaiInput) (*model.Pegawai, error) {
 	}
 
 	return &model.Pegawai{
+		BidangID:     in.BidangID,
 		Nama:         nama,
 		NIP:          nip,
 		TanggalLahir: tanggalLahir,
