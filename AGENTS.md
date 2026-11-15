@@ -7,7 +7,8 @@ Panduan untuk agent yang bekerja di repo ini.
 | Topik | Intinya |
 | --- | --- |
 | Stack | Go + chi + Bun + SQLite (`modernc.org/sqlite`) + goose. Jangan ganti. |
-| Cek cepat | `make help` (daftar target), `make run`, `make check` (wajib sebelum selesai) |
+| Status | Kontrak + DTO + layer DB sudah ada; layer HTTP (handler/service/router) belum di-wire |
+| Cek cepat | `make help` (daftar target), `make check` (wajib sebelum selesai), `make api-validate` untuk kontrak |
 | DB | `persistence/db/app.db`, WAL, `synchronous=NORMAL`, `busy_timeout`, `foreign_keys=ON`, pool kecil |
 | Migration | `make migrate-create NAME=nama` → isi Up/Down → `make migrate-up` |
 | Layer | `main.go` wiring; `internal/` handler → service → repository → model, DTO di `internal/dto`; tidak campur |
@@ -28,13 +29,22 @@ Panduan untuk agent yang bekerja di repo ini.
 Project **Go** sederhana. Gunakan stack yang sudah ditentukan; jangan ganti
 tanpa alasan kuat.
 
+Urutan kerja saat ini: **kontrak dulu** (`api/openapi.yaml`), lalu DTO tangan
+(`internal/dto`), lalu layer DB (`internal/model`, `internal/repository` yang
+sudah ada). Layer HTTP sengaja belum ada: `handler`, `service`, dan `router`
+dibangun lagi setelah bentuk kontrak stabil. `main.go` untuk sekarang hanya
+membuka database dan menjalankan migration, belum menyalakan server.
+
 ## Stack
 
 - Bahasa: **Go**
-- Router: **`github.com/go-chi/chi/v5`**
+- Router: **`github.com/go-chi/chi/v5`** (dipakai lagi saat layer HTTP di-wire;
+  saat ini belum ada di `go.mod`)
+- Kontrak: **OpenAPI 3.1** di `api/openapi.yaml`, tanpa codegen
 - Database: **SQLite3** (satu-satunya database), driver **`modernc.org/sqlite`** (pure Go, tanpa CGO)
 - ORM: **`github.com/uptrace/bun`** + **`bun/dialect/sqlitedialect`**
 - Migration: **`github.com/pressly/goose/v3`**
+- Docs UI: **Redocly CLI** lewat `npx` (butuh Node.js), hanya untuk `make docs`
 
 Buka koneksi dengan `sql.Open("sqlite", dsn)`. Jangan memakai
 `bun/driver/sqliteshim` atau `github.com/mattn/go-sqlite3`; keduanya menambah
@@ -49,7 +59,7 @@ melihat daftar target.
 
 | Perintah | Ekuivalen manual | Fungsi |
 | --- | --- | --- |
-| `make run` | `ADDR=:8080 DB_PATH=persistence/db/app.db go run .` | Jalankan aplikasi |
+| `make run` | `DB_PATH=persistence/db/app.db go run .` | Buka database + migration lalu keluar (belum ada server) |
 | `make build` | `go build -trimpath -o bin/simple-go-crud-app .` | Build binary ke `bin/` |
 | `make test` | `go test ./...` | Jalankan semua test |
 | `make vet` | `go vet ./...` | Jalankan `go vet` |
@@ -85,7 +95,6 @@ lewat `go run`, jadi tidak perlu install goose. Override bila perlu, mis.
 
 | Variabel | Default | Dipakai oleh |
 | --- | --- | --- |
-| `ADDR` | `:8080` | `make run` |
 | `DB_PATH` | `persistence/db/app.db` | `make run`, target migration |
 | `NAME` | — (wajib) | `make migrate-create` |
 | `GOOSE` | `go run -tags '<GOOSE_TAGS>' github.com/pressly/goose/v3/cmd/goose@v3.30.0` | Target migration |
@@ -95,8 +104,10 @@ Selalu jalankan `make check` (fmt, vet, test) sebelum selesai.
 
 ## Struktur
 
-- `main.go` — entrypoint, wiring dependency, start server.
-- `internal/` — kode aplikasi (handler, service, repository, model, router).
+- `main.go` — entrypoint; buka database dan jalankan migration. Server HTTP
+  belum di-wire.
+- `internal/` — kode aplikasi. Saat ini berisi `database`, `model`,
+  `repository`, dan `apperr`; `handler`, `service`, dan `router` menyusul.
 - `api/` — kontrak OpenAPI (`openapi.yaml`) beserta test validasinya; sumber
   kebenaran bentuk API.
 - `internal/dto/` — struct request/response yang ditulis tangan dan harus
@@ -120,11 +131,15 @@ Selalu jalankan `make check` (fmt, vet, test) sebelum selesai.
 - Komentar kode dalam bahasa Inggris; teks untuk pengguna dalam bahasa
   Indonesia.
 
-### Router (chi)
+### HTTP & router (chi) — belum di-wire
+
+Bagian ini berlaku saat `handler`, `service`, dan `router` dibangun lagi.
 
 - Daftarkan route di satu tempat (router), kelompokkan per resource.
 - Gunakan middleware chi untuk logging, recovery, dan hal lintas-cutting.
 - Path parameter dibaca dengan `chi.URLParam`.
+- Handler hanya menerjemahkan HTTP ↔ DTO ↔ service; tidak menulis query dan
+  tidak menyimpan aturan bisnis.
 
 ### Database (Bun + SQLite3)
 
@@ -325,6 +340,9 @@ CREATE VIRTUAL TABLE items_fts USING fts5(
 
 ### API
 
+Layer HTTP belum ada; kontrak dan DTO sudah (lihat subbagian berikut). Aturan
+di bawah ini yang nanti dipegang handler.
+
 - Response sukses: `{"data": ...}`.
 - Response error: `{"error": "pesan"}` dengan status HTTP yang sesuai
   (`400`, `401`, `403`, `404`, `409`, `422`, `500`).
@@ -338,7 +356,8 @@ CREATE VIRTUAL TABLE items_fts USING fts5(
 - Tanggal di DTO memakai `DD-MM-YYYY` (format Indonesia). Request menerima
   `DD-MM-YYYY` maupun `YYYY-MM-DD`; penyimpanan tetap `YYYY-MM-DD`.
 - Jangan expose kolom internal apa adanya. Boolean/enum dipetakan ke label
-  Indonesia di service, mis. `is_male` → `jenis_kelamin`: `Pria`/`Wanita`.
+  Indonesia saat membentuk DTO, mis. `is_male` → `jenis_kelamin`:
+  `Pria`/`Wanita`.
 
 #### Kontrak API (contract-first)
 
@@ -351,6 +370,8 @@ CREATE VIRTUAL TABLE items_fts USING fts5(
 - Handler nanti memakai tipe `internal/dto`, bukan struct anonim atau `map`.
 - `make api-validate` dijalankan sebelum merge; test yang sama juga jalan
   lewat `make check`.
+- `make docs` untuk melihat kontrak sebagai dokumentasi di
+  <http://127.0.0.1:8082>.
 - Perubahan kontrak yang mengubah bentuk response = perubahan breaking untuk
   FE; naikkan `info.version` dan catat di deskripsi operasi terkait.
 - Kontrak wajib mendokumentasikan: envelope `data`/`error`, status `400`,
@@ -365,8 +386,14 @@ CREATE VIRTUAL TABLE items_fts USING fts5(
 ### Testing
 
 - Test memakai database sementara, jangan menyentuh database runtime.
-- Setiap endpoint baru punya test happy path + kasus error.
+- Setiap endpoint baru punya test happy path + kasus error (setelah layer HTTP
+  di-wire).
 - Test tidak boleh bergantung pada state global atau urutan eksekusi.
+- Test kontrak: `api/openapi_test.go` memvalidasi spec dan melarang kolom
+  internal muncul di schema.
+- Test DTO: `internal/dto/dto_test.go` memvalidasi payload DTO terhadap schema
+  kontrak, jadi rename field JSON tanpa update kontrak langsung gagal.
+- Saat menambah DTO baru, tambahkan juga test kecocokannya.
 
 ## Jangan commit
 

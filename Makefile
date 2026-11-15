@@ -3,7 +3,6 @@ SHELL := /bin/sh
 APP       := simple-go-crud-app
 BIN_DIR   := bin
 BIN       := $(BIN_DIR)/$(APP)
-ADDR      ?= :8080
 DB_PATH   ?= persistence/db/app.db
 # Build goose with SQLite support only; the project does not use other drivers.
 GOOSE_TAGS ?= no_clickhouse no_libsql no_mssql no_azuresql no_mysql no_postgres no_vertica no_ydb
@@ -23,8 +22,8 @@ GO_FILES  := $(shell find . -type f -name '*.go' -not -path './vendor/*')
 help: ## Tampilkan daftar target
 	@awk 'BEGIN {FS = ":.*## "; printf "\nPenggunaan:\n  make \033[36m<target>\033[0m\n\nTarget:\n"} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-run: ## Jalankan aplikasi (ADDR=:8080, DB_PATH=persistence/db/app.db)
-	ADDR=$(ADDR) DB_PATH=$(DB_PATH) go run .
+run: ## Buka database + migration lalu keluar (belum ada server)
+	DB_PATH=$(DB_PATH) go run .
 
 build: ## Build binary ke bin/
 	@mkdir -p $(BIN_DIR)
