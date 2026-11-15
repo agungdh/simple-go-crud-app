@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/uptrace/bun"
 
@@ -23,12 +22,9 @@ func NewPegawaiRepository(db *bun.DB) *PegawaiRepository {
 	return &PegawaiRepository{db: db}
 }
 
-// trigramMinRunes is the shortest query the FTS5 trigram tokenizer can match.
-const trigramMinRunes = 3
-
 // List returns active pegawai ordered by id. When query is not empty, only
-// rows whose search_text contains it are returned. Queries of at least three
-// characters use the trigram index; shorter ones fall back to a table scan.
+// rows whose search_text matches are returned. Callers must enforce the
+// three-character minimum required by the trigram tokenizer.
 func (r *PegawaiRepository) List(ctx context.Context, query string) ([]model.Pegawai, error) {
 	items := make([]model.Pegawai, 0)
 
@@ -38,12 +34,7 @@ func (r *PegawaiRepository) List(ctx context.Context, query string) ([]model.Peg
 		Order("p.id ASC")
 	q = model.Active(q)
 
-	switch {
-	case query == "":
-	case utf8.RuneCountInString(query) < trigramMinRunes:
-		// The trigram tokenizer cannot match fewer than three characters.
-		q = q.Where("instr(lower(p.search_text), lower(?)) > 0", query)
-	default:
+	if query != "" {
 		q = q.Join("JOIN pegawai_fts AS f ON f.rowid = p.id").
 			Where("f.search_text MATCH ?", ftsPhrase(query))
 	}

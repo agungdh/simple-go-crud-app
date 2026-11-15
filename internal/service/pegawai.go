@@ -18,6 +18,7 @@ const (
 	maxNamaLength   = 150
 	maxNIPLength    = 50
 	maxAlamatLength = 500
+	minSearchLength = 3
 	maxSearchLength = 100
 )
 
@@ -42,6 +43,9 @@ func NewPegawaiService(repo *repository.PegawaiRepository) *PegawaiService {
 
 func (s *PegawaiService) List(ctx context.Context, query string) ([]model.Pegawai, error) {
 	query = strings.TrimSpace(query)
+	if query != "" && utf8.RuneCountInString(query) < minSearchLength {
+		return nil, apperr.Validation(fmt.Sprintf("q minimal %d karakter", minSearchLength))
+	}
 	if utf8.RuneCountInString(query) > maxSearchLength {
 		return nil, apperr.Validation(fmt.Sprintf("q maksimal %d karakter", maxSearchLength))
 	}

@@ -368,7 +368,6 @@ func TestPegawaiSearch(t *testing.T) {
 		{name: "matches pria", query: "pria", want: 1},
 		{name: "matches wanita", query: "wanita", want: 1},
 		{name: "case insensitive", query: "BUDI", want: 1},
-		{name: "short query fallback", query: "si", want: 1},
 		{name: "no match", query: "zzz", want: 0},
 		{name: "fts operators are literal", query: "budi AND siti", want: 0},
 	}
@@ -437,6 +436,24 @@ func TestPegawaiSearchExcludesDeleted(t *testing.T) {
 
 	if got := len(listPegawai(t, srv, "budi")); got != 0 {
 		t.Fatalf("search after delete returned %d rows, want 0", got)
+	}
+}
+
+func TestPegawaiSearchTooShort(t *testing.T) {
+	srv := newTestServer(t)
+	createPegawai(t, srv)
+
+	rec := doRequest(t, srv, http.MethodGet, "/pegawai?q="+url.QueryEscape("si"), nil)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422, body = %s", rec.Code, rec.Body.String())
+	}
+	if decodeResponse(t, rec).Error == "" {
+		t.Fatal("error message is empty")
+	}
+
+	// Blank input means "no filter" and must still list everything.
+	if got := len(listPegawai(t, srv, "   ")); got != 1 {
+		t.Fatalf("blank query returned %d rows, want 1", got)
 	}
 }
 

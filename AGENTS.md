@@ -16,7 +16,7 @@ Panduan untuk agent yang bekerja di repo ini.
 | Audit | Wajib `model.Base`; isi via `MarkCreated/MarkUpdated/MarkDeleted`; jangan expose ke API |
 | Soft delete | `model.Active(q)` + `UPDATE deleted_at/deleted_by`; unik = partial index `WHERE deleted_at IS NULL` |
 | Query | **Jangan `SELECT *`**; pakai `Column(model.PublicColumns(...)...)` |
-| Cari | `search_text` (VIRTUAL) + FTS5 trigram `<tabel>_fts`; `?q=` ≥3 karakter pakai index, <3 karakter fallback scan |
+| Cari | `search_text` (VIRTUAL) + FTS5 trigram `<tabel>_fts`; `?q=` wajib ≥3 karakter (kurang → `422`) |
 | FK | `ON UPDATE RESTRICT ON DELETE RESTRICT`, tipe `BIGINT`, beri index |
 | Error | Unique/FK → `409`; format `{"data": ...}` / `{"error": "..."}`; detail internal jangan dibocorkan |
 | Test | DB sementara; tiap endpoint: happy path + error |
@@ -287,8 +287,8 @@ CREATE VIRTUAL TABLE items_fts USING fts5(
 - Query: `JOIN items_fts AS f ON f.rowid = i.id` lalu
   `WHERE f.search_text MATCH ?`. Tetap filter `deleted_at IS NULL` di tabel
   utama; baris soft delete boleh tertinggal di index.
-- Trigram hanya cocok untuk **minimal 3 karakter**. Query lebih pendek memakai
-  `instr(lower(search_text), lower(?)) > 0` (scan).
+- Trigram hanya cocok untuk **minimal 3 karakter**. Query 1–2 karakter
+  **ditolak** (`422`), bukan fallback scan; query kosong berarti tanpa filter.
 - Bungkus input user sebagai frasa FTS (`"..."`, escape `"` menjadi `""`) agar
   operator `AND`/`OR`/`NOT`/`*` diperlakukan sebagai teks biasa.
 
@@ -318,8 +318,9 @@ CREATE VIRTUAL TABLE items_fts USING fts5(
   maupun request. Gunakan DTO terpisah atau `json:"-"`.
 - Jangan bocorkan detail error internal ke klien; log di server.
 - Batasi ukuran body request.
-- Pencarian lewat query param `?q=`: trim input, batasi panjang (mis. 100
-  karakter → `422` lebih dari itu), dan jangan expose `search_text` di response.
+- Pencarian lewat query param `?q=`: trim input, minimal 3 karakter dan
+  maksimal 100 karakter (di luar itu `422`), dan jangan expose `search_text` di
+  response.
 
 ### Testing
 
