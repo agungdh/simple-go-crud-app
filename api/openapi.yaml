@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: Simple Go CRUD API
-  version: 0.3.0
+  version: 0.4.0
   description: |
     Kontrak API untuk entitas `bidang` dan `pegawai`.
 
@@ -13,11 +13,11 @@ info:
     - `POST` sukses membalas `201` dan `PUT` sukses membalas `200`, keduanya
       tanpa body; data yang dibuat atau diubah tidak dikembalikan (sejak
       `0.2.0`). Ambil datanya lewat endpoint `GET` bila dibutuhkan.
-    - Error input (`400`/`422`) memakai `{"errors": {"<field>": ["pesan", ...]}}`
-      (sejak `0.3.0`); satu field bisa punya beberapa pesan. `400` memakai key
-      `body` untuk body yang tidak terbaca.
-    - Error non-validasi (`404`, `500`, nanti `401`/`403`) memakai
+    - Error `400`, `404`, dan `500` (nanti `401`/`403`) memakai
       `{"error": "pesan"}` yang aman ditampilkan ke pengguna.
+    - Error validasi (`422`) memakai
+      `{"error": {"validations": {"<field>": ["pesan", ...]}}}` (sejak
+      `0.4.0`); satu field bisa punya beberapa pesan.
     - Status error yang dipakai hanya `400`, `401`, `403`, `404`, `422`, dan
       `500`. `401`/`403` menyusul saat autentikasi/otorisasi ditambahkan.
     - `400` berarti body request tidak terbaca: JSON rusak, bukan satu objek
@@ -234,34 +234,33 @@ components:
       description: |
         Body request tidak terbaca: JSON rusak, bukan satu objek JSON, lebih dari
         satu nilai, body kosong, atau melebihi 1 MiB. Response memakai
-        `{"errors": {"body": ["..."]}}`.
+        `{"error": "..."}`.
       content:
         application/json:
-          schema: { $ref: '#/components/schemas/BadRequestResponse' }
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
           example:
-            errors:
-              body:
-                - Body request tidak terbaca.
+            error: Body request tidak terbaca.
     UnprocessableEntity:
       description: |
         Body terbaca sebagai satu objek JSON, tetapi isinya tidak valid. Response
-        selalu `{"errors": {...}}` dengan key nama field JSON dan value daftar
-        pesan (satu field bisa lebih dari satu pesan); field yang valid tidak
-        muncul.
+        selalu `{"error": {"validations": {...}}}` dengan key nama field JSON dan
+        value daftar pesan (satu field bisa lebih dari satu pesan); field yang
+        valid tidak muncul.
 
         Mencakup tipe field salah, field tidak dikenal, `id` tidak valid, field
         wajib kosong, melebihi panjang maksimum, tanggal tidak valid, dan `q` di
         luar 3–100 karakter.
 
-        Sejak `0.3.0` error validasi tidak lagi memakai `{"error": "..."}`.
+        Sejak `0.4.0` error validasi memakai `error.validations`.
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ValidationErrorResponse' }
           example:
-            errors:
-              bidang:
-                - Bidang wajib diisi.
-                - Bidang maksimal 150 karakter.
+            error:
+              validations:
+                bidang:
+                  - Bidang wajib diisi.
+                  - Bidang maksimal 150 karakter.
     InternalServerError:
       description: |
         Terjadi kesalahan di server. Detail tidak disertakan; hubungi admin bila
@@ -285,38 +284,25 @@ components:
     ValidationErrorResponse:
       type: object
       additionalProperties: false
-      required: [errors]
+      required: [error]
       properties:
-        errors:
-          type: object
-          minProperties: 1
-          description: |
-            Pesan error input per field. Key adalah nama field JSON. Value
-            selalu array pesan, minimal satu. Field yang valid tidak muncul.
-          additionalProperties:
-            type: array
-            minItems: 1
-            items:
-              type: string
-              minLength: 1
-
-    BadRequestResponse:
-      type: object
-      additionalProperties: false
-      required: [errors]
-      properties:
-        errors:
+        error:
           type: object
           additionalProperties: false
-          required: [body]
+          required: [validations]
           properties:
-            body:
-              type: array
-              description: Pesan untuk body request yang tidak terbaca.
-              minItems: 1
-              items:
-                type: string
-                minLength: 1
+            validations:
+              type: object
+              minProperties: 1
+              description: |
+                Pesan validasi per field. Key adalah nama field JSON. Value
+                selalu array pesan, minimal satu. Field yang valid tidak muncul.
+              additionalProperties:
+                type: array
+                minItems: 1
+                items:
+                  type: string
+                  minLength: 1
 
     Bidang:
       type: object
