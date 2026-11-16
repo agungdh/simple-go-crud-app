@@ -7,9 +7,19 @@ type ErrorResponse struct {
 }
 
 // ValidationErrorResponse is the 422 envelope defined by the contract. Errors
-// maps a JSON field name to one or more messages; request-wide problems use the
-// "body" key. The map must never be nil so the envelope always marshals as an
-// object.
+// maps a JSON field name to one or more messages. The map must never be nil so
+// the envelope always marshals as an object.
 type ValidationErrorResponse struct {
 	Errors map[string][]string `json:"errors"`
+}
+
+// BadRequestResponse is the 400 envelope for a body that cannot be read. Unlike
+// the 422 envelope, it only carries request-wide errors under "body".
+type BadRequestResponse struct {
+	Errors BadRequestErrors `json:"errors"`
+}
+
+// BadRequestErrors groups request-wide errors for an unreadable body.
+type BadRequestErrors struct {
+	Body []string `json:"body"`
 }

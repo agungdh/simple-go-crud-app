@@ -228,6 +228,8 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example:
+            error: Data dengan id tersebut tidak ditemukan.
     BadRequest:
       description: |
         Body request tidak terbaca: JSON rusak, bukan satu objek JSON, lebih dari
@@ -235,7 +237,11 @@ components:
         `{"errors": {"body": ["..."]}}`.
       content:
         application/json:
-          schema: { $ref: '#/components/schemas/ValidationErrorResponse' }
+          schema: { $ref: '#/components/schemas/BadRequestResponse' }
+          example:
+            errors:
+              body:
+                - Body request tidak terbaca.
     UnprocessableEntity:
       description: |
         Body terbaca sebagai satu objek JSON, tetapi isinya tidak valid. Response
@@ -251,6 +257,11 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ValidationErrorResponse' }
+          example:
+            errors:
+              bidang:
+                - Bidang wajib diisi.
+                - Bidang maksimal 150 karakter.
     InternalServerError:
       description: |
         Terjadi kesalahan di server. Detail tidak disertakan; hubungi admin bila
@@ -258,6 +269,8 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example:
+            error: Terjadi kesalahan di server.
 
   schemas:
     ErrorResponse:
@@ -268,7 +281,6 @@ components:
         error:
           type: string
           description: Pesan error yang aman ditampilkan.
-          examples: [bidang tidak ditemukan]
 
     ValidationErrorResponse:
       type: object
@@ -279,21 +291,32 @@ components:
           type: object
           minProperties: 1
           description: |
-            Pesan error input per field. Key adalah nama field JSON; `body`
-            dipakai untuk body yang tidak terbaca. Value selalu array pesan,
-            minimal satu. Field yang valid tidak muncul.
+            Pesan error input per field. Key adalah nama field JSON. Value
+            selalu array pesan, minimal satu. Field yang valid tidak muncul.
           additionalProperties:
             type: array
             minItems: 1
             items:
               type: string
               minLength: 1
-          examples:
-            - bidang:
-                - Bidang wajib diisi.
-                - Bidang maksimal 150 karakter.
-              body:
-                - Body request tidak terbaca.
+
+    BadRequestResponse:
+      type: object
+      additionalProperties: false
+      required: [errors]
+      properties:
+        errors:
+          type: object
+          additionalProperties: false
+          required: [body]
+          properties:
+            body:
+              type: array
+              description: Pesan untuk body request yang tidak terbaca.
+              minItems: 1
+              items:
+                type: string
+                minLength: 1
 
     Bidang:
       type: object
