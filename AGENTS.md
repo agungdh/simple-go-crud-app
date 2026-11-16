@@ -8,11 +8,11 @@ Panduan untuk agent yang bekerja di repo ini.
 | --- | --- |
 | Stack | Go + chi + Bun + SQLite (`modernc.org/sqlite`) + goose. Jangan ganti. |
 | Status | Kontrak + DTO + layer DB sudah ada; layer HTTP (handler/service/router) belum di-wire |
-| Cek cepat | `make help` (daftar target), `make check` (wajib sebelum selesai), `make api-validate` untuk kontrak |
+| Cek cepat | `make help` (daftar target), `make check` (wajib sebelum selesai), `make api-validate` (Scalar, butuh Node.js) untuk kontrak |
 | DB | `persistence/db/app.db`, WAL, `synchronous=NORMAL`, `busy_timeout`, `foreign_keys=ON`, pool kecil |
 | Migration | `make migrate-create NAME=nama` → isi Up/Down → `make migrate-up` |
 | Layer | `main.go` wiring; `internal/` handler → service → repository → model, DTO di `internal/dto`; tidak campur |
-| Kontrak | `api/openapi.yaml` sumber kebenaran; DTO tangan di `internal/dto`; `make api-validate` |
+| Kontrak | `api/openapi.yaml` ditulis **dulu**, baru implementasi; tanpa generator/dependency OpenAPI di Go; DTO tangan di `internal/dto`; `make api-validate` (Scalar) |
 | ID | `INTEGER PRIMARY KEY AUTOINCREMENT`, di Go `int64` |
 | Waktu | Audit `*_at` = epoch **ms UTC**; tanggal/waktu bisnis = `TEXT` ISO-8601 (`YYYY-MM-DD`) |
 | Audit | Wajib `model.Base`; isi via `MarkCreated/MarkUpdated/MarkDeleted`; jangan expose ke API |
@@ -29,23 +29,33 @@ Panduan untuk agent yang bekerja di repo ini.
 Project **Go** sederhana. Gunakan stack yang sudah ditentukan; jangan ganti
 tanpa alasan kuat.
 
-Urutan kerja saat ini: **kontrak dulu** (`api/openapi.yaml`), lalu DTO tangan
-(`internal/dto`), lalu layer DB (`internal/model`, `internal/repository` yang
-sudah ada). Layer HTTP sengaja belum ada: `handler`, `service`, dan `router`
-dibangun lagi setelah bentuk kontrak stabil. `main.go` untuk sekarang hanya
-membuka database dan menjalankan migration, belum menyalakan server.
+Urutan kerja wajib **spec-first**: tulis atau ubah `api/openapi.yaml` dulu,
+review sampai bentuknya stabil, baru tulis DTO tangan di `internal/dto`, lalu
+implementasi (`internal/model`, `internal/repository`, dan nanti `handler`,
+`service`, `router`). Jangan menulis implementasi untuk endpoint yang belum ada
+di kontrak, dan jangan mengubah kontrak supaya cocok dengan kode yang sudah
+terlanjur dibuat.
+
+Kontrak **ditulis tangan**. Tidak ada generator OpenAPI di repo ini: jangan
+menambah `oapi-codegen`, `openapi-generator`, `swag`, `huma`, `go:generate`
+untuk kontrak, atau file `*.gen.go`. Layer HTTP sengaja belum ada: `handler`,
+`service`, dan `router` dibangun lagi setelah bentuk kontrak stabil. `main.go`
+untuk sekarang hanya membuka database dan menjalankan migration, belum
+menyalakan server.
 
 ## Stack
 
 - Bahasa: **Go**
 - Router: **`github.com/go-chi/chi/v5`** (dipakai lagi saat layer HTTP di-wire;
   saat ini belum ada di `go.mod`)
-- Kontrak: **OpenAPI 3.1** di `api/openapi.yaml`, tanpa codegen
+- Kontrak: **OpenAPI 3.1** di `api/openapi.yaml`, ditulis tangan lebih dulu; tanpa generator/codegen
 - Database: **SQLite3** (satu-satunya database), driver **`modernc.org/sqlite`** (pure Go, tanpa CGO)
 - ORM: **`github.com/uptrace/bun`** + **`bun/dialect/sqlitedialect`**
 - Migration: **`github.com/pressly/goose/v3`**
-- Docs UI: **Scalar CLI** lewat `npx` (butuh Node.js) untuk `make docs` dan
-  `make mock`; Scalar mendukung OpenAPI 3.1 dan panel "Test Request".
+- Docs UI: **Scalar CLI** lewat `npx` (butuh Node.js) untuk `make docs`,
+  `make mock`, dan `make api-validate`; Scalar mendukung OpenAPI 3.1 dan panel
+  "Test Request". Scalar hanya untuk memvalidasi, melihat, dan mem-mock
+  kontrak, bukan generator spec atau kode.
 
 Buka koneksi dengan `sql.Open("sqlite", dsn)`. Jangan memakai
 `bun/driver/sqliteshim` atau `github.com/mattn/go-sqlite3`; keduanya menambah
@@ -67,7 +77,7 @@ melihat daftar target.
 | `make fmt` | `gofmt -w .` | Format semua file Go |
 | `make fmt-check` | `gofmt -l .` (harus kosong) | Cek format tanpa mengubah file |
 | `make tidy` | `go mod tidy` | Rapikan `go.mod` dan `go.sum` |
-| `make api-validate` | `go test ./internal/dto` | Validasi kontrak + kecocokan DTO |
+| `make api-validate` | `npx @scalar/cli document validate api/openapi.yaml` | Validasi kontrak OpenAPI (butuh Node.js) |
 | `make docs` | `npx @scalar/cli document serve api/openapi.yaml -p 8082` | Preview kontrak + "Test Request" di <http://127.0.0.1:8082> (butuh Node.js) |
 | `make mock` | `npx @scalar/cli document mock api/openapi.yaml -p 8081` | Mock server dari kontrak di <http://127.0.0.1:8081> |
 | `make check` | `make fmt-check vet test` | Format, vet, dan test sekaligus |
@@ -112,8 +122,8 @@ Selalu jalankan `make check` (fmt, vet, test) sebelum selesai.
 - `internal/` — kode aplikasi. Saat ini berisi `database`, `model`,
   `repository`, dan `apperr`; `handler`, `service`, dan `router` menyusul.
 - `api/` — kontrak OpenAPI (`openapi.yaml`); sumber kebenaran bentuk API.
-- `internal/dto/` — struct request/response yang ditulis tangan dan harus
-  sesuai kontrak; tidak ada kode generated.
+- `internal/dto/` — struct request/response yang ditulis tangan setelah kontrak
+  stabil; tidak ada kode generated dan tidak ada generator.
 - `migrations/` — file migration goose.
 - `persistence/db/` — database runtime (tidak di-commit); hanya `.gitkeep`.
 - `Makefile` — target perintah harian; sumber kebenaran daftar perintah.
@@ -373,7 +383,21 @@ di bawah ini yang nanti dipegang handler.
 
 #### Kontrak API (contract-first)
 
-- `api/openapi.yaml` adalah **sumber kebenaran**. Ubah kontrak dulu, baru kode.
+Alur wajib untuk setiap perubahan API:
+
+1. Tulis atau ubah `api/openapi.yaml`: path, request, response, status, dan
+   aturan validasi.
+2. Review kontrak sampai bentuknya disetujui; jangan menulis kode dulu.
+3. Tulis atau sesuaikan DTO tangan di `internal/dto`.
+4. Jalankan `make api-validate` untuk memastikan kontrak valid (Scalar, butuh
+   Node.js).
+5. Implementasi layer di baliknya (`repository`, `service`, `handler`,
+   `router`).
+
+Kalau implementasi ternyata butuh bentuk berbeda, perbaiki kontrak dulu, baru
+kode. Jangan mengubah kontrak hanya agar cocok dengan kode yang sudah ada.
+
+- `api/openapi.yaml` adalah **sumber kebenaran** dan ditulis **lebih dulu**.
 - Spec hanya untuk konsumen (FE). Jangan tulis detail internal: nama
   tabel/kolom, index, foreign key, soft delete, FTS/trigram, format
   penyimpanan, atau penyebab error database. Cukup bentuk DTO, aturan validasi
@@ -381,16 +405,20 @@ di bawah ini yang nanti dipegang handler.
 - Alasan error cukup di level yang berguna untuk client (`422` = input tidak
   valid, `404` = data tidak ada, `500` = kesalahan server), bukan nama
   constraint atau tabel.
-- Tidak ada codegen. DTO ditulis tangan di `internal/dto` dan wajib cocok
-  dengan schema di kontrak; `make api-validate` memvalidasi kecocokannya.
+- Tidak ada generator OpenAPI, dependency OpenAPI di Go, dan tidak ada codegen.
+  Jangan menambah `oapi-codegen`, `openapi-generator`, `swag`, `huma`,
+  `kin-openapi`, `go:generate` untuk kontrak, atau file `*.gen.go`. DTO ditulis
+  tangan di `internal/dto` dan wajib cocok dengan schema di kontrak;
+  kecocokannya dicek manual saat review, bukan lewat test/library Go.
 - Nama field JSON di DTO harus sama persis dengan kontrak. Untuk tipe yang
   berbeda antara request dan response (mis. `jenis_kelamin`), buat dua tipe
   terpisah, jangan dipaksa satu.
 - Handler nanti memakai tipe `internal/dto`, bukan struct anonim atau `map`.
-- `make api-validate` dijalankan sebelum merge; test yang sama juga jalan
-  lewat `make check`.
+- `make api-validate` dijalankan sebelum merge; target ini butuh Node.js dan
+  bukan bagian dari `make check`.
 - `make docs` untuk melihat kontrak sebagai dokumentasi di
-  <http://127.0.0.1:8082>.
+  <http://127.0.0.1:8082>. Scalar hanya untuk memvalidasi, melihat, dan
+  mem-mock kontrak, bukan generator spec atau kode.
 - Perubahan kontrak yang mengubah bentuk response = perubahan breaking untuk
   FE; naikkan `info.version` dan catat di deskripsi operasi terkait.
 - Kontrak wajib mendokumentasikan: envelope `data`/`error`, status yang
@@ -407,12 +435,12 @@ di bawah ini yang nanti dipegang handler.
 - Setiap endpoint baru punya test happy path + kasus error (setelah layer HTTP
   di-wire).
 - Test tidak boleh bergantung pada state global atau urutan eksekusi.
-- Test kontrak: tidak ada test khusus di `api/`; `internal/dto/dto_test.go`
-  memuat `api/openapi.yaml` dan memvalidasinya (`doc.Validate`) sekaligus
-  mencocokkan payload DTO dengan schema.
-- Test DTO: `internal/dto/dto_test.go` memvalidasi payload DTO terhadap schema
-  kontrak, jadi rename field JSON tanpa update kontrak langsung gagal.
-- Saat menambah DTO baru, tambahkan juga test kecocokannya.
+- Tidak ada test Go khusus kontrak dan tidak ada dependency OpenAPI di Go.
+  Validasi kontrak lewat `make api-validate` (Scalar CLI, butuh Node.js).
+- Kecocokan DTO dengan kontrak tidak dicek otomatis. Review manual saat
+  menambah atau mengubah DTO; nama field JSON harus sama persis dengan schema.
+- Tetap tulis test perilaku untuk endpoint (happy path + error) saat layer HTTP
+  di-wire; test itu tidak memuat atau memvalidasi `api/openapi.yaml`.
 
 ## Jangan commit
 

@@ -1,10 +1,10 @@
 // Package dto holds the request and response payloads defined by
 // api/openapi.yaml.
 //
-// The project has no code generation: every struct here is written by hand and
-// must stay in sync with the contract. dto_test.go validates sample payloads
-// against the OpenAPI schemas, so a field rename without a contract change
-// fails the test suite.
+// The project has no code generation: every struct here is written by hand
+// after the contract is stable and must stay in sync with it. The contract is
+// validated with `make api-validate`; DTO compatibility is checked during
+// review, not by Go tests.
 package dto
 
 // Bidang is the bidang representation returned to clients.

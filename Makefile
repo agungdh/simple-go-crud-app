@@ -52,8 +52,8 @@ tidy: ## Rapikan go.mod dan go.sum
 
 check: fmt-check vet test ## Jalankan fmt-check, vet, dan test
 
-api-validate: ## Validasi kontrak OpenAPI dan kecocokan DTO
-	go test ./internal/dto
+api-validate: ## Validasi kontrak OpenAPI dengan Scalar (butuh Node.js)
+	$(SCALAR) document validate api/openapi.yaml
 
 docs: ## Preview kontrak + coba request di browser (butuh Node.js, port 8082)
 	$(SCALAR) document serve api/openapi.yaml --port $(DOCS_PORT) --watch
