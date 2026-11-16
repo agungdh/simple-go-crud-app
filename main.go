@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -28,6 +29,7 @@ func main() {
 func run() error {
 	dbPath := envOr("DB_PATH", "persistence/db/app.db")
 	addr := envOr("ADDR", ":8080")
+	corsOrigins := splitList(envOr("CORS_ORIGINS", "http://127.0.0.1:8082,http://localhost:8082"))
 
 	db, err := database.Open(dbPath)
 	if err != nil {
@@ -41,7 +43,7 @@ func run() error {
 
 	server := &http.Server{
 		Addr:              addr,
-		Handler:           router.New(db),
+		Handler:           router.New(db, corsOrigins),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -84,4 +86,17 @@ func envOr(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+// splitList turns a comma-separated env value into a trimmed list, dropping
+// empty entries.
+func splitList(value string) []string {
+	parts := strings.Split(value, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
 }

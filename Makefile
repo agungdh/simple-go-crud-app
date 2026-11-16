@@ -5,6 +5,8 @@ BIN_DIR   := bin
 BIN       := $(BIN_DIR)/$(APP)
 DB_PATH   ?= persistence/db/app.db
 ADDR      ?= :8080
+# Origins allowed to call the API from a browser; Scalar docs runs on 8082.
+CORS_ORIGINS ?= http://127.0.0.1:8082,http://localhost:8082
 # Build goose with SQLite support only; the project does not use other drivers.
 GOOSE_TAGS ?= no_clickhouse no_libsql no_mssql no_azuresql no_mysql no_postgres no_vertica no_ydb
 GOOSE      ?= go run -tags '$(GOOSE_TAGS)' github.com/pressly/goose/v3/cmd/goose@v3.30.0
@@ -25,7 +27,7 @@ help: ## Tampilkan daftar target
 	@awk 'BEGIN {FS = ":.*## "; printf "\nPenggunaan:\n  make \033[36m<target>\033[0m\n\nTarget:\n"} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 run: ## Jalankan server HTTP (migrasi otomatis)
-	ADDR=$(ADDR) DB_PATH=$(DB_PATH) go run .
+	CORS_ORIGINS=$(CORS_ORIGINS) ADDR=$(ADDR) DB_PATH=$(DB_PATH) go run .
 
 build: ## Build binary ke bin/
 	@mkdir -p $(BIN_DIR)

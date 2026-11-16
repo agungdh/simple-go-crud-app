@@ -22,25 +22,28 @@ type testEnv struct {
 	handler http.Handler
 }
 
+const testOrigin = "http://127.0.0.1:8082"
+
 func newTestEnv(t *testing.T) *testEnv {
 	t.Helper()
 	db := testutil.OpenDB(t)
-	return &testEnv{t: t, db: db, handler: router.New(db)}
+	return &testEnv{t: t, db: db, handler: router.New(db, []string{testOrigin})}
 }
 
 func (e *testEnv) do(method, path, body string) *httptest.ResponseRecorder {
 	e.t.Helper()
+	return e.doWithHeaders(method, path, body, nil)
+}
 
-	var reader *strings.Reader
-	if body == "" {
-		reader = strings.NewReader("")
-	} else {
-		reader = strings.NewReader(body)
-	}
+func (e *testEnv) doWithHeaders(method, path, body string, headers map[string]string) *httptest.ResponseRecorder {
+	e.t.Helper()
 
-	req := httptest.NewRequest(method, path, reader)
+	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")
+	}
+	for key, value := range headers {
+		req.Header.Set(key, value)
 	}
 	rec := httptest.NewRecorder()
 	e.handler.ServeHTTP(rec, req)
@@ -117,6 +120,70 @@ func requireValidationFields(t *testing.T, rec *httptest.ResponseRecorder, field
 		}
 	}
 	return validations
+}
+
+func TestCORS(t *testing.T) {
+	env := newTestEnv(t)
+
+	t.Run("actual request from docs origin", func(t *testing.T) {
+		rec := env.doWithHeaders(http.MethodGet, "/bidang", "", map[string]string{
+			"Origin": testOrigin,
+		})
+		requireStatus(t, rec, http.StatusOK)
+		if got := rec.Header().Get("Access-Control-Allow-Origin"); got != testOrigin {
+			t.Errorf("Access-Control-Allow-Origin = %q, want %q", got, testOrigin)
+		}
+		if got := rec.Header().Get("Vary"); !strings.Contains(got, "Origin") {
+			t.Errorf("Vary = %q, want it to contain Origin", got)
+		}
+	})
+
+	t.Run("error response keeps CORS headers", func(t *testing.T) {
+		rec := env.doWithHeaders(http.MethodGet, "/bidang/9999", "", map[string]string{
+			"Origin": testOrigin,
+		})
+		requireStatus(t, rec, http.StatusNotFound)
+		if got := rec.Header().Get("Access-Control-Allow-Origin"); got != testOrigin {
+			t.Errorf("Access-Control-Allow-Origin = %q, want %q", got, testOrigin)
+		}
+	})
+
+	t.Run("preflight", func(t *testing.T) {
+		rec := env.doWithHeaders(http.MethodOptions, "/bidang", "", map[string]string{
+			"Origin":                         testOrigin,
+			"Access-Control-Request-Method":  http.MethodPost,
+			"Access-Control-Request-Headers": "content-type",
+		})
+		requireStatus(t, rec, http.StatusNoContent)
+		requireEmptyBody(t, rec)
+		if got := rec.Header().Get("Access-Control-Allow-Origin"); got != testOrigin {
+			t.Errorf("Access-Control-Allow-Origin = %q, want %q", got, testOrigin)
+		}
+		if got := rec.Header().Get("Access-Control-Allow-Methods"); !strings.Contains(got, http.MethodPost) {
+			t.Errorf("Access-Control-Allow-Methods = %q, want it to contain POST", got)
+		}
+		if got := rec.Header().Get("Access-Control-Allow-Headers"); !strings.Contains(got, "Content-Type") {
+			t.Errorf("Access-Control-Allow-Headers = %q, want it to contain Content-Type", got)
+		}
+	})
+
+	t.Run("disallowed origin", func(t *testing.T) {
+		rec := env.doWithHeaders(http.MethodGet, "/bidang", "", map[string]string{
+			"Origin": "http://evil.example",
+		})
+		requireStatus(t, rec, http.StatusOK)
+		if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
+			t.Errorf("Access-Control-Allow-Origin = %q, want empty", got)
+		}
+	})
+
+	t.Run("no origin", func(t *testing.T) {
+		rec := env.do(http.MethodGet, "/bidang", "")
+		requireStatus(t, rec, http.StatusOK)
+		if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
+			t.Errorf("Access-Control-Allow-Origin = %q, want empty", got)
+		}
+	})
 }
 
 func TestBidangCRUD(t *testing.T) {

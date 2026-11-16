@@ -16,8 +16,9 @@ import (
 )
 
 // New wires repositories, services, and handlers into the HTTP router. Routes
-// mirror api/openapi.yaml exactly, without trailing slashes.
-func New(db *bun.DB) http.Handler {
+// mirror api/openapi.yaml exactly, without trailing slashes. allowedOrigins is
+// the exact list of browser origins permitted by CORS.
+func New(db *bun.DB, allowedOrigins []string) http.Handler {
 	bidangHandler := handler.NewBidang(service.NewBidang(repository.NewBidangRepository(db)))
 	pegawaiHandler := handler.NewPegawai(service.NewPegawai(repository.NewPegawaiRepository(db)))
 
@@ -26,6 +27,7 @@ func New(db *bun.DB) http.Handler {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(recoverer)
+	r.Use(corsMiddleware(allowedOrigins))
 
 	r.Get("/bidang", bidangHandler.List)
 	r.Post("/bidang", bidangHandler.Create)

@@ -67,7 +67,7 @@ melihat daftar target.
 
 | Perintah | Ekuivalen manual | Fungsi |
 | --- | --- | --- |
-| `make run` | `ADDR=:8080 DB_PATH=persistence/db/app.db go run .` | Buka database + migration, lalu jalankan server HTTP |
+| `make run` | `CORS_ORIGINS=http://127.0.0.1:8082,http://localhost:8082 ADDR=:8080 DB_PATH=persistence/db/app.db go run .` | Buka database + migration, lalu jalankan server HTTP |
 | `make build` | `go build -trimpath -o bin/simple-go-crud-app .` | Build binary ke `bin/` |
 | `make test` | `go test ./...` | Jalankan semua test |
 | `make vet` | `go vet ./...` | Jalankan `go vet` |
@@ -106,6 +106,7 @@ lewat `go run`, jadi tidak perlu install goose. Override bila perlu, mis.
 | --- | --- | --- |
 | `DB_PATH` | `persistence/db/app.db` | `make run`, target migration |
 | `ADDR` | `:8080` | `make run` |
+| `CORS_ORIGINS` | `http://127.0.0.1:8082,http://localhost:8082` | `make run` |
 | `NAME` | — (wajib) | `make migrate-create` |
 | `GOOSE` | `go run -tags '<GOOSE_TAGS>' github.com/pressly/goose/v3/cmd/goose@v3.30.0` | Target migration |
 | `DOCS_PORT` | `8082` | `make docs` |
@@ -152,6 +153,8 @@ Selalu jalankan `make check` (fmt, vet, test) sebelum selesai.
   terbaca dibalas `400`, isi yang tidak valid (field asing, tipe salah) `422`.
 - Validasi isi (wajib, panjang, tanggal, enum, `q`) ada di `internal/service`
   dan mengembalikan `apperr.FieldErrors`.
+- CORS dibatasi ke origin eksplisit dari `CORS_ORIGINS` (default Scalar docs
+  di `:8082`); preflight `OPTIONS` dijawab `204`.
 
 ### Database (Bun + SQLite3)
 
