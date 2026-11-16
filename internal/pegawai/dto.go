@@ -37,14 +37,3 @@ type Input struct {
 	Alamat       string            `json:"alamat"`
 	JenisKelamin JenisKelaminInput `json:"jenis_kelamin"`
 }
-
-// Envelope is the single-object response envelope.
-type Envelope struct {
-	Data Response `json:"data"`
-}
-
-// ListEnvelope is the collection envelope. Data must marshal as [] when empty,
-// never null.
-type ListEnvelope struct {
-	Data []Response `json:"data"`
-}

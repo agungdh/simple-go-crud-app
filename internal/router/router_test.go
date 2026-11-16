@@ -154,7 +154,7 @@ func (e *testEnv) createBidang(name string) int64 {
 	rec = e.do(http.MethodGet, "/bidang", "")
 	requireStatus(e.t, rec, http.StatusOK)
 
-	list := decodeJSON[bidang.ListEnvelope](e.t, rec)
+	list := decodeJSON[httpx.ListEnvelope[bidang.Response]](e.t, rec)
 	for _, item := range list.Data {
 		if item.Bidang == name {
 			return item.ID
@@ -301,7 +301,7 @@ func TestBidangCRUD(t *testing.T) {
 
 	rec = env.do(http.MethodGet, "/bidang", "")
 	requireStatus(t, rec, http.StatusOK)
-	list := decodeJSON[bidang.ListEnvelope](t, rec)
+	list := decodeJSON[httpx.ListEnvelope[bidang.Response]](t, rec)
 	if len(list.Data) != 1 {
 		t.Fatalf("list length = %d, want 1", len(list.Data))
 	}
@@ -312,7 +312,7 @@ func TestBidangCRUD(t *testing.T) {
 
 	rec = env.do(http.MethodGet, fmt.Sprintf("/bidang/%d", id), "")
 	requireStatus(t, rec, http.StatusOK)
-	detail := decodeJSON[bidang.Envelope](t, rec)
+	detail := decodeJSON[httpx.Envelope[bidang.Response]](t, rec)
 	if detail.Data.ID != id || detail.Data.Bidang != "Keuangan" {
 		t.Errorf("detail = %+v, want id %d and bidang Keuangan", detail.Data, id)
 	}
@@ -323,14 +323,14 @@ func TestBidangCRUD(t *testing.T) {
 
 	rec = env.do(http.MethodGet, fmt.Sprintf("/bidang/%d", id), "")
 	requireStatus(t, rec, http.StatusOK)
-	detail = decodeJSON[bidang.Envelope](t, rec)
+	detail = decodeJSON[httpx.Envelope[bidang.Response]](t, rec)
 	if detail.Data.Bidang != "Keuangan Pusat" {
 		t.Errorf("bidang after update = %q, want %q", detail.Data.Bidang, "Keuangan Pusat")
 	}
 
 	rec = env.do(http.MethodGet, "/bidang?q=Keuangan", "")
 	requireStatus(t, rec, http.StatusOK)
-	if got := len(decodeJSON[bidang.ListEnvelope](t, rec).Data); got != 1 {
+	if got := len(decodeJSON[httpx.ListEnvelope[bidang.Response]](t, rec).Data); got != 1 {
 		t.Errorf("search hits = %d, want 1", got)
 	}
 
@@ -514,7 +514,7 @@ func TestPegawaiCRUD(t *testing.T) {
 
 	rec = env.do(http.MethodGet, "/pegawai", "")
 	requireStatus(t, rec, http.StatusOK)
-	list := decodeJSON[pegawai.ListEnvelope](t, rec)
+	list := decodeJSON[httpx.ListEnvelope[pegawai.Response]](t, rec)
 	if len(list.Data) != 1 {
 		t.Fatalf("list length = %d, want 1", len(list.Data))
 	}
@@ -532,7 +532,7 @@ func TestPegawaiCRUD(t *testing.T) {
 
 	rec = env.do(http.MethodGet, fmt.Sprintf("/pegawai/%d", id), "")
 	requireStatus(t, rec, http.StatusOK)
-	detail := decodeJSON[pegawai.Envelope](t, rec)
+	detail := decodeJSON[httpx.Envelope[pegawai.Response]](t, rec)
 	if detail.Data.ID != id {
 		t.Errorf("detail id = %d, want %d", detail.Data.ID, id)
 	}
@@ -540,7 +540,7 @@ func TestPegawaiCRUD(t *testing.T) {
 	for _, q := range []string{"Budi", "1987654321", "17-08-1990", "pria"} {
 		rec = env.do(http.MethodGet, "/pegawai?q="+q, "")
 		requireStatus(t, rec, http.StatusOK)
-		hits := decodeJSON[pegawai.ListEnvelope](t, rec)
+		hits := decodeJSON[httpx.ListEnvelope[pegawai.Response]](t, rec)
 		if len(hits.Data) != 1 {
 			t.Errorf("search %q hits = %d, want 1", q, len(hits.Data))
 		}
@@ -554,7 +554,7 @@ func TestPegawaiCRUD(t *testing.T) {
 
 	rec = env.do(http.MethodGet, fmt.Sprintf("/pegawai/%d", id), "")
 	requireStatus(t, rec, http.StatusOK)
-	detail = decodeJSON[pegawai.Envelope](t, rec)
+	detail = decodeJSON[httpx.Envelope[pegawai.Response]](t, rec)
 	if detail.Data.TanggalLahir != "17-08-1990" {
 		t.Errorf("tanggal_lahir after update = %q, want DD-MM-YYYY", detail.Data.TanggalLahir)
 	}
@@ -678,7 +678,7 @@ func (e *testEnv) createPegawai(body string) int64 {
 	rec = e.do(http.MethodGet, "/pegawai", "")
 	requireStatus(e.t, rec, http.StatusOK)
 
-	list := decodeJSON[pegawai.ListEnvelope](e.t, rec)
+	list := decodeJSON[httpx.ListEnvelope[pegawai.Response]](e.t, rec)
 	if len(list.Data) == 0 {
 		e.t.Fatal("no pegawai found after create")
 	}

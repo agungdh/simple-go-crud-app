@@ -25,7 +25,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteServiceError(w, "list bidang", err)
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, ListEnvelope{Data: items})
+	httpx.WriteJSON(w, http.StatusOK, httpx.ListEnvelope[Response]{Data: items})
 }
 
 // Get handles GET /bidang/{id}.
@@ -40,7 +40,7 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteServiceError(w, "get bidang", err)
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, Envelope{Data: item})
+	httpx.WriteJSON(w, http.StatusOK, httpx.Envelope[Response]{Data: item})
 }
 
 // Create handles POST /bidang.

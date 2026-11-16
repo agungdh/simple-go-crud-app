@@ -10,6 +10,7 @@ import (
 
 	"simple-go-crud-app/internal/bidang"
 	"simple-go-crud-app/internal/pegawai"
+	"simple-go-crud-app/internal/shared/httpx"
 )
 
 // auditSnapshot holds the internal audit columns, which are never exposed by
@@ -63,7 +64,7 @@ func TestAuditColumnsFollowAuthenticatedUser(t *testing.T) {
 
 	rec = env.do(http.MethodGet, "/bidang", "")
 	requireStatus(t, rec, http.StatusOK)
-	bidangList := decodeJSON[bidang.ListEnvelope](t, rec)
+	bidangList := decodeJSON[httpx.ListEnvelope[bidang.Response]](t, rec)
 	if len(bidangList.Data) != 1 {
 		t.Fatalf("bidang count = %d, want 1", len(bidangList.Data))
 	}
@@ -103,7 +104,7 @@ func TestAuditColumnsFollowAuthenticatedUser(t *testing.T) {
 
 	rec = env.do(http.MethodGet, "/bidang", "")
 	requireStatus(t, rec, http.StatusOK)
-	bidangList = decodeJSON[bidang.ListEnvelope](t, rec)
+	bidangList = decodeJSON[httpx.ListEnvelope[bidang.Response]](t, rec)
 	if len(bidangList.Data) != 1 {
 		t.Fatalf("active bidang count = %d, want 1", len(bidangList.Data))
 	}
@@ -118,7 +119,7 @@ func TestAuditColumnsFollowAuthenticatedUser(t *testing.T) {
 
 	rec = env.do(http.MethodGet, "/pegawai", "")
 	requireStatus(t, rec, http.StatusOK)
-	pegawaiList := decodeJSON[pegawai.ListEnvelope](t, rec)
+	pegawaiList := decodeJSON[httpx.ListEnvelope[pegawai.Response]](t, rec)
 	if len(pegawaiList.Data) != 1 {
 		t.Fatalf("pegawai count = %d, want 1", len(pegawaiList.Data))
 	}

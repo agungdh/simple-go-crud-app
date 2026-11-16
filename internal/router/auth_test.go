@@ -237,7 +237,7 @@ func TestAuthAccessControl(t *testing.T) {
 
 		rec = env.do(http.MethodGet, "/bidang", "")
 		requireStatus(t, rec, http.StatusOK)
-		list := decodeJSON[bidang.ListEnvelope](t, rec)
+		list := decodeJSON[httpx.ListEnvelope[bidang.Response]](t, rec)
 		if len(list.Data) != 1 {
 			t.Fatalf("bidang count = %d, want 1", len(list.Data))
 		}
