@@ -356,9 +356,12 @@ CREATE VIRTUAL TABLE items_fts USING fts5(
 Layer HTTP belum ada; kontrak dan DTO sudah (lihat subbagian berikut). Aturan
 di bawah ini yang nanti dipegang handler.
 
-- Response sukses: `{"data": ...}`.
-- Response error: `{"error": "pesan"}`. Status yang boleh dipakai hanya
-  `401`, `403`, `404`, `422`, dan `500`; `401`/`403` menyusul saat
+- Response `GET` sukses: `{"data": ...}`.
+- `POST` sukses `201` tanpa body, `PUT` sukses `200` tanpa body; data yang
+  dibuat/diubah tidak dikembalikan sampai ada kebutuhan. `DELETE` membalas
+  `204` tanpa body.
+- Response error: `{"error": "pesan"}`. Status **error** yang boleh dipakai
+  hanya `401`, `403`, `404`, `422`, dan `500`; `401`/`403` menyusul saat
   autentikasi/otorisasi ditambahkan.
 - Validasi **selalu** `422`, termasuk request yang tidak terbaca: JSON rusak,
   lebih dari satu objek, tipe field salah, field tidak dikenal, body > 1 MiB,
@@ -421,9 +424,10 @@ kode. Jangan mengubah kontrak hanya agar cocok dengan kode yang sudah ada.
   mem-mock kontrak, bukan generator spec atau kode.
 - Perubahan kontrak yang mengubah bentuk response = perubahan breaking untuk
   FE; naikkan `info.version` dan catat di deskripsi operasi terkait.
-- Kontrak wajib mendokumentasikan: envelope `data`/`error`, status yang
-  benar-benar dipakai endpoint (hanya `401`, `403`, `404`, `422`, `500`), dan
-  larangan mengekspos kolom audit/internal.
+- Kontrak wajib mendokumentasikan: envelope `data` untuk `GET`, response tanpa
+  body untuk `POST`/`PUT`/`DELETE`, envelope `error`, status yang benar-benar
+  dipakai endpoint (sukses `200`/`201`/`204`, error `401`, `403`, `404`, `422`,
+  `500`), dan larangan mengekspos kolom audit/internal.
 - Kontrak tidak boleh memuat status `400`, `409`, atau `413`; semuanya
   dipetakan ke aturan di atas.
 - Tanggal di kontrak memakai `pattern`, bukan `format: date`, karena DTO

@@ -2,17 +2,20 @@ openapi: 3.1.0
 
 info:
   title: Simple Go CRUD API
-  version: 0.1.0
+  version: 0.2.0
   description: |
     Kontrak API untuk entitas `bidang` dan `pegawai`.
 
     Dokumen ini hanya memuat hal yang dibutuhkan konsumen: bentuk request dan
     response, aturan validasi, serta status yang mungkin diterima.
 
-    - Response sukses selalu dibungkus `{"data": ...}`.
+    - Response `GET` sukses selalu dibungkus `{"data": ...}`.
+    - `POST` sukses membalas `201` dan `PUT` sukses membalas `200`, keduanya
+      tanpa body; data yang dibuat atau diubah tidak dikembalikan (sejak
+      `0.2.0`). Ambil datanya lewat endpoint `GET` bila dibutuhkan.
     - Response error selalu `{"error": "pesan"}` dan pesannya aman ditampilkan
       ke pengguna.
-    - Status yang dipakai hanya `401`, `403`, `404`, `422`, dan `500`.
+    - Status error yang dipakai hanya `401`, `403`, `404`, `422`, dan `500`.
       `401`/`403` menyusul saat autentikasi/otorisasi ditambahkan.
     - `422` berarti input tidak valid: JSON tidak terbaca, tipe salah, field
       tidak dikenal, body melebihi 1 MiB, `id` bukan bilangan bulat positif,
@@ -63,10 +66,9 @@ paths:
             schema: { $ref: '#/components/schemas/BidangInput' }
       responses:
         '201':
-          description: Bidang dibuat
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/BidangResponse' }
+          description: |
+            Bidang dibuat. Response tanpa body dan tidak mengembalikan data
+            sejak `0.2.0`; gunakan `GET /bidang/{id}` bila butuh detail.
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
@@ -96,10 +98,9 @@ paths:
             schema: { $ref: '#/components/schemas/BidangInput' }
       responses:
         '200':
-          description: Bidang diperbarui
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/BidangResponse' }
+          description: |
+            Bidang diperbarui. Response tanpa body dan tidak mengembalikan data
+            sejak `0.2.0`.
         '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
@@ -139,10 +140,9 @@ paths:
             schema: { $ref: '#/components/schemas/PegawaiInput' }
       responses:
         '201':
-          description: Pegawai dibuat
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/PegawaiResponse' }
+          description: |
+            Pegawai dibuat. Response tanpa body dan tidak mengembalikan data
+            sejak `0.2.0`; gunakan `GET /pegawai/{id}` bila butuh detail.
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
@@ -172,10 +172,9 @@ paths:
             schema: { $ref: '#/components/schemas/PegawaiInput' }
       responses:
         '200':
-          description: Pegawai diperbarui
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/PegawaiResponse' }
+          description: |
+            Pegawai diperbarui. Response tanpa body dan tidak mengembalikan
+            data sejak `0.2.0`.
         '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
