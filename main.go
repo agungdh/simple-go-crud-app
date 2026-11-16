@@ -29,7 +29,7 @@ func main() {
 func run() error {
 	dbPath := envOr("DB_PATH", "persistence/db/app.db")
 	addr := envOr("ADDR", ":8080")
-	corsOrigins := splitList(envOr("CORS_ORIGINS", "http://127.0.0.1:8082,http://localhost:8082"))
+	corsOrigins := splitList(envOr("CORS_ORIGINS", "http://localhost:8082"))
 
 	db, err := database.Open(dbPath)
 	if err != nil {

@@ -22,7 +22,7 @@ type testEnv struct {
 	handler http.Handler
 }
 
-const testOrigin = "http://127.0.0.1:8082"
+const testOrigin = "http://localhost:8082"
 
 func newTestEnv(t *testing.T) *testEnv {
 	t.Helper()
@@ -167,13 +167,15 @@ func TestCORS(t *testing.T) {
 		}
 	})
 
-	t.Run("disallowed origin", func(t *testing.T) {
-		rec := env.doWithHeaders(http.MethodGet, "/bidang", "", map[string]string{
-			"Origin": "http://evil.example",
-		})
-		requireStatus(t, rec, http.StatusOK)
-		if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
-			t.Errorf("Access-Control-Allow-Origin = %q, want empty", got)
+	t.Run("disallowed origins", func(t *testing.T) {
+		for _, origin := range []string{"http://127.0.0.1:8082", "http://evil.example"} {
+			rec := env.doWithHeaders(http.MethodGet, "/bidang", "", map[string]string{
+				"Origin": origin,
+			})
+			requireStatus(t, rec, http.StatusOK)
+			if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
+				t.Errorf("origin %q: Access-Control-Allow-Origin = %q, want empty", origin, got)
+			}
 		}
 	})
 
