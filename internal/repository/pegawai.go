@@ -70,6 +70,24 @@ func (r *PegawaiRepository) GetByID(ctx context.Context, id int64) (*model.Pegaw
 	return pegawai, nil
 }
 
+// NIPExists reports whether an active pegawai already uses nip. A positive
+// excludeID is ignored, which lets updates keep their own NIP.
+func (r *PegawaiRepository) NIPExists(ctx context.Context, nip string, excludeID int64) (bool, error) {
+	q := r.db.NewSelect().
+		Model((*model.Pegawai)(nil)).
+		Where("p.nip = ?", nip)
+	q = model.Active(q)
+	if excludeID > 0 {
+		q = q.Where("p.id <> ?", excludeID)
+	}
+
+	exists, err := q.Exists(ctx)
+	if err != nil {
+		return false, fmt.Errorf("check pegawai nip %q: %w", nip, err)
+	}
+	return exists, nil
+}
+
 // Create inserts a new pegawai and sets its generated id.
 func (r *PegawaiRepository) Create(ctx context.Context, pegawai *model.Pegawai) error {
 	_, err := r.db.NewInsert().

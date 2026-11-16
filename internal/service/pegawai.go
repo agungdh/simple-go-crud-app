@@ -2,19 +2,54 @@ package service
 
 import (
 	"context"
+	"errors"
 
+	"simple-go-crud-app/internal/apperr"
 	"simple-go-crud-app/internal/dto"
 	"simple-go-crud-app/internal/model"
 	"simple-go-crud-app/internal/repository"
 )
 
+const (
+	duplicateNIPMessage  = "NIP sudah digunakan."
+	missingBidangMessage = "Bidang tidak ditemukan."
+)
+
 // PegawaiService implements the pegawai use cases on top of the repository.
 type PegawaiService struct {
-	repo *repository.PegawaiRepository
+	repo   *repository.PegawaiRepository
+	bidang *repository.BidangRepository
 }
 
-func NewPegawai(repo *repository.PegawaiRepository) *PegawaiService {
-	return &PegawaiService{repo: repo}
+func NewPegawai(repo *repository.PegawaiRepository, bidang *repository.BidangRepository) *PegawaiService {
+	return &PegawaiService{repo: repo, bidang: bidang}
+}
+
+// referenceErrors checks the values that must exist or stay unique: NIP among
+// active pegawai and bidang_id among active bidang.
+func (s *PegawaiService) referenceErrors(ctx context.Context, fields pegawaiFields, excludeID int64) (apperr.FieldErrors, error) {
+	errs := apperr.FieldErrors{}
+
+	nipExists, err := s.repo.NIPExists(ctx, fields.NIP, excludeID)
+	if err != nil {
+		return nil, err
+	}
+	if nipExists {
+		errs.Add("nip", duplicateNIPMessage)
+	}
+
+	if _, err := s.bidang.GetByID(ctx, fields.BidangID); err != nil {
+		if errors.Is(err, apperr.ErrNotFound) {
+			errs.Add("bidang_id", missingBidangMessage)
+		} else {
+			return nil, err
+		}
+	}
+
+	if errs.Any() {
+		return errs, nil
+	}
+	return nil, nil
 }
 
 // List returns active pegawai, optionally filtered by a search keyword.
@@ -52,6 +87,14 @@ func (s *PegawaiService) Create(ctx context.Context, input dto.PegawaiInput) err
 		return err
 	}
 
+	referenceErrs, err := s.referenceErrors(ctx, fields, 0)
+	if err != nil {
+		return err
+	}
+	if referenceErrs != nil {
+		return referenceErrs
+	}
+
 	item := &model.Pegawai{
 		BidangID:     fields.BidangID,
 		Nama:         fields.Nama,
@@ -61,7 +104,15 @@ func (s *PegawaiService) Create(ctx context.Context, input dto.PegawaiInput) err
 		IsMale:       fields.IsMale,
 	}
 	item.MarkCreated(0)
-	return s.repo.Create(ctx, item)
+	if err := s.repo.Create(ctx, item); err != nil {
+		// Re-check on write failure so a concurrent insert still returns a
+		// validation error instead of leaking a database error as 500.
+		if referenceErrs, checkErr := s.referenceErrors(ctx, fields, 0); checkErr == nil && referenceErrs != nil {
+			return referenceErrs
+		}
+		return err
+	}
+	return nil
 }
 
 // Update validates and replaces the editable fields of an active pegawai.
@@ -69,6 +120,14 @@ func (s *PegawaiService) Update(ctx context.Context, id int64, input dto.Pegawai
 	fields, err := validatePegawaiInput(input)
 	if err != nil {
 		return err
+	}
+
+	referenceErrs, err := s.referenceErrors(ctx, fields, id)
+	if err != nil {
+		return err
+	}
+	if referenceErrs != nil {
+		return referenceErrs
 	}
 
 	item := &model.Pegawai{
@@ -81,7 +140,13 @@ func (s *PegawaiService) Update(ctx context.Context, id int64, input dto.Pegawai
 		IsMale:       fields.IsMale,
 	}
 	item.MarkUpdated(0)
-	return s.repo.Update(ctx, item)
+	if err := s.repo.Update(ctx, item); err != nil {
+		if referenceErrs, checkErr := s.referenceErrors(ctx, fields, id); checkErr == nil && referenceErrs != nil {
+			return referenceErrs
+		}
+		return err
+	}
+	return nil
 }
 
 // Delete soft deletes an active pegawai.

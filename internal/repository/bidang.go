@@ -63,6 +63,24 @@ func (r *BidangRepository) GetByID(ctx context.Context, id int64) (*model.Bidang
 	return bidang, nil
 }
 
+// NameExists reports whether an active bidang already uses name. A positive
+// excludeID is ignored, which lets updates keep their own name.
+func (r *BidangRepository) NameExists(ctx context.Context, name string, excludeID int64) (bool, error) {
+	q := r.db.NewSelect().
+		Model((*model.Bidang)(nil)).
+		Where("b.bidang = ?", name)
+	q = model.Active(q)
+	if excludeID > 0 {
+		q = q.Where("b.id <> ?", excludeID)
+	}
+
+	exists, err := q.Exists(ctx)
+	if err != nil {
+		return false, fmt.Errorf("check bidang name %q: %w", name, err)
+	}
+	return exists, nil
+}
+
 // Create inserts a new bidang and sets its generated id.
 func (r *BidangRepository) Create(ctx context.Context, bidang *model.Bidang) error {
 	_, err := r.db.NewInsert().

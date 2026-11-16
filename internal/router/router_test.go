@@ -331,20 +331,27 @@ func TestBidangValidation(t *testing.T) {
 	})
 }
 
-func TestBidangDatabaseErrors(t *testing.T) {
+func TestBidangDuplicates(t *testing.T) {
 	env := newTestEnv(t)
 
 	rec := env.do(http.MethodPost, "/bidang", `{"bidang":"SDM"}`)
 	requireStatus(t, rec, http.StatusCreated)
 
-	// Duplicate active name is a post-validation error, so the contract maps it
-	// to a generic 500 rather than 409.
+	// A duplicate active name is a validation error, not a server error.
 	rec = env.do(http.MethodPost, "/bidang", `{"bidang":"SDM"}`)
-	requireStatus(t, rec, http.StatusInternalServerError)
-	body := decodeJSON[dto.ErrorResponse](t, rec)
-	if body.Error == "" {
-		t.Error("500 response has an empty error message")
-	}
+	requireValidationFields(t, rec, "bidang")
+
+	// The name is trimmed before the uniqueness check.
+	rec = env.do(http.MethodPost, "/bidang", `{"bidang":"  SDM  "}`)
+	requireValidationFields(t, rec, "bidang")
+
+	id := env.createBidang("Keuangan")
+	rec = env.do(http.MethodPut, fmt.Sprintf("/bidang/%d", id), `{"bidang":"SDM"}`)
+	requireValidationFields(t, rec, "bidang")
+
+	// Keeping the same name on update must not conflict with itself.
+	rec = env.do(http.MethodPut, fmt.Sprintf("/bidang/%d", id), `{"bidang":"Keuangan"}`)
+	requireStatus(t, rec, http.StatusOK)
 }
 
 func TestBidangInvalidID(t *testing.T) {
@@ -567,25 +574,84 @@ func TestPegawaiValidation(t *testing.T) {
 	})
 }
 
-func TestPegawaiDatabaseErrors(t *testing.T) {
+func (e *testEnv) createPegawai(body string) int64 {
+	e.t.Helper()
+
+	rec := e.do(http.MethodPost, "/pegawai", body)
+	requireStatus(e.t, rec, http.StatusCreated)
+
+	rec = e.do(http.MethodGet, "/pegawai", "")
+	requireStatus(e.t, rec, http.StatusOK)
+
+	list := decodeJSON[dto.PegawaiListResponse](e.t, rec)
+	if len(list.Data) == 0 {
+		e.t.Fatal("no pegawai found after create")
+	}
+	return list.Data[len(list.Data)-1].ID
+}
+
+func TestPegawaiReferences(t *testing.T) {
 	env := newTestEnv(t)
 	bidangID := env.createBidang("Keuangan")
 
+	// Missing bidang on create.
 	rec := env.do(http.MethodPost, "/pegawai", pegawaiBody(
 		999999, "Budi", "1", "17-08-1990", "Jl. Merdeka", "pria",
 	))
-	requireStatus(t, rec, http.StatusInternalServerError)
+	requireValidationFields(t, rec, "bidang_id")
+
+	// Soft-deleted bidang is not a valid reference.
+	deletedBidangID := env.createBidang("Lama")
+	rec = env.do(http.MethodDelete, fmt.Sprintf("/bidang/%d", deletedBidangID), "")
+	requireStatus(t, rec, http.StatusNoContent)
 
 	rec = env.do(http.MethodPost, "/pegawai", pegawaiBody(
+		deletedBidangID, "Budi", "1", "17-08-1990", "Jl. Merdeka", "pria",
+	))
+	requireValidationFields(t, rec, "bidang_id")
+
+	env.createPegawai(pegawaiBody(
 		bidangID, "Budi", "1", "17-08-1990", "Jl. Merdeka", "pria",
 	))
-	requireStatus(t, rec, http.StatusCreated)
+	secondID := env.createPegawai(pegawaiBody(
+		bidangID, "Ani", "2", "17-08-1990", "Jl. Merdeka", "wanita",
+	))
 
-	// Duplicate NIP is a post-validation error, so it maps to 500.
+	// Duplicate NIP on create.
 	rec = env.do(http.MethodPost, "/pegawai", pegawaiBody(
+		bidangID, "Citra", "1", "17-08-1990", "Jl. Merdeka", "wanita",
+	))
+	requireValidationFields(t, rec, "nip")
+
+	// Duplicate NIP on update.
+	rec = env.do(http.MethodPut, fmt.Sprintf("/pegawai/%d", secondID), pegawaiBody(
 		bidangID, "Ani", "1", "17-08-1990", "Jl. Merdeka", "wanita",
 	))
-	requireStatus(t, rec, http.StatusInternalServerError)
+	requireValidationFields(t, rec, "nip")
+
+	// Missing bidang on update.
+	rec = env.do(http.MethodPut, fmt.Sprintf("/pegawai/%d", secondID), pegawaiBody(
+		999999, "Ani", "2", "17-08-1990", "Jl. Merdeka", "wanita",
+	))
+	requireValidationFields(t, rec, "bidang_id")
+
+	// Both reference problems are collected in one response.
+	rec = env.do(http.MethodPut, fmt.Sprintf("/pegawai/%d", secondID), pegawaiBody(
+		999999, "Ani", "1", "17-08-1990", "Jl. Merdeka", "wanita",
+	))
+	requireValidationFields(t, rec, "nip", "bidang_id")
+
+	// A soft-deleted pegawai releases its NIP, matching the partial unique index.
+	deletedPegawaiID := env.createPegawai(pegawaiBody(
+		bidangID, "Dewi", "9", "17-08-1990", "Jl. Merdeka", "wanita",
+	))
+	rec = env.do(http.MethodDelete, fmt.Sprintf("/pegawai/%d", deletedPegawaiID), "")
+	requireStatus(t, rec, http.StatusNoContent)
+
+	rec = env.do(http.MethodPost, "/pegawai", pegawaiBody(
+		bidangID, "Dewi Baru", "9", "17-08-1990", "Jl. Merdeka", "wanita",
+	))
+	requireStatus(t, rec, http.StatusCreated)
 }
 
 func TestPegawaiSearchLength(t *testing.T) {

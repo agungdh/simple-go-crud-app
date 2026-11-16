@@ -20,7 +20,7 @@ Panduan untuk agent yang bekerja di repo ini.
 | Query | **Jangan `SELECT *`**; pakai `Column(model.PublicColumns(...)...)` |
 | Cari | `search_text` (VIRTUAL) + FTS5 trigram `<tabel>_fts`; `?q=` wajib ≥3 karakter (kurang → `422`) |
 | FK | `ON UPDATE RESTRICT ON DELETE RESTRICT`, tipe `BIGINT`, beri index |
-| Error | Hanya `400`, `401`, `403`, `404`, `422`, `500`; `400`/`404`/`500` → `{"error": "..."}`, `422` → `{"error": {"validations": {"field": ["..."]}}}`; pasca-validasi → `500` |
+| Error | Hanya `400`, `401`, `403`, `404`, `422`, `500`; `400`/`404`/`500` → `{"error": "..."}`, `422` → `{"error": {"validations": {"field": ["..."]}}}`; validasi termasuk unik/FK → `422`, error tak terduga → `500` |
 | Test | DB sementara; tiap endpoint: happy path + error |
 | Jangan commit | `*.db*`, `bin/`, `.env`, file IDE |
 
@@ -178,9 +178,10 @@ Selalu jalankan `make check` (fmt, vet, test) sebelum selesai.
 - Kolom tanggal/waktu **bisnis** (mis. `tanggal_lahir`, `jadwal`) disimpan
   sebagai **`TEXT` ISO-8601**: `YYYY-MM-DD` untuk tanggal, `YYYY-MM-DDTHH:MM:SSZ`
   untuk waktu. Jangan memakai epoch milliseconds di luar kolom audit.
-- Pelanggaran `UNIQUE` dan `FOREIGN KEY` adalah error pasca-validasi; biarkan
-  menjadi `500` (tetap dibungkus error domain agar jelas saat dilog), bukan
-  `409`.
+- Pelanggaran `UNIQUE` dan `FOREIGN KEY` yang berasal dari input wajib dicek
+  lebih dulu di service dan dibalas `422`, bukan `409`. Constraint tetap ada
+  sebagai pertahanan terakhir; error yang tidak bisa dicek dari input (mis.
+  hard delete parent yang masih direferensikan) dibalas `500`.
 
 #### Select kolom
 
@@ -376,9 +377,13 @@ berikut). Aturan di bawah ini dipegang handler.
   dari satu nilai, body kosong, atau body > 1 MiB.
 - `422` untuk body yang terbaca tetapi isinya tidak valid: tipe field salah,
   field tidak dikenal, `id` bukan bilangan bulat positif, field wajib kosong,
-  kepanjangan, tanggal tidak valid, atau `q` di luar 3–100 karakter.
-- Setelah validasi lolos, kegagalan apa pun (unique/NIP duplikat, foreign key,
-  error database) dibalas `500`. Jangan menambah status baru untuk itu.
+  kepanjangan, tanggal tidak valid, `q` di luar 3–100 karakter, nama bidang
+  atau NIP yang sudah dipakai, atau `bidang_id` yang tidak menunjuk bidang
+  aktif.
+- Keunikan dan referensi yang bergantung pada input wajib dicek lebih dulu di
+  service (nama bidang unik, NIP unik di antara pegawai aktif, `bidang_id`
+  harus bidang aktif) dan dibalas `422`. Setelah validasi lolos, kegagalan tak
+  terduga atau error database tetap dibalas `500`.
 - `404` hanya untuk `GET`/`PUT`/`DELETE` by id saat data tidak ada atau sudah
   dihapus (soft delete). Endpoint koleksi tidak memakai `404`.
 - Jangan expose kolom audit (`created_*`, `updated_*`, `deleted_*`) di response

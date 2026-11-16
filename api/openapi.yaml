@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: Simple Go CRUD API
-  version: 0.4.0
+  version: 0.5.0
   description: |
     Kontrak API untuk entitas `bidang` dan `pegawai`.
 
@@ -24,8 +24,9 @@ info:
       JSON, lebih dari satu nilai, body kosong, atau body melebihi 1 MiB.
     - `422` berarti body terbaca tetapi isinya tidak valid: tipe salah, field
       tidak dikenal, `id` bukan bilangan bulat positif, field wajib kosong,
-      panjang melebihi batas, tanggal tidak valid, atau `q` di luar 3–100
-      karakter.
+      panjang melebihi batas, tanggal tidak valid, `q` di luar 3–100 karakter,
+      nama bidang atau NIP yang sudah dipakai, atau `bidang_id` yang tidak
+      menunjuk bidang aktif.
     - `404` berarti data dengan `id` tersebut tidak ditemukan.
     - `500` berarti terjadi kesalahan di server; detailnya tidak disertakan.
     - Tanggal pada response berformat `DD-MM-YYYY`; request menerima
@@ -63,6 +64,9 @@ paths:
     post:
       operationId: createBidang
       summary: Tambah bidang
+      description: |
+        Nama bidang harus unik di antara bidang aktif; duplikat dibalas `422`
+        (sejak `0.5.0`).
       tags: [bidang]
       requestBody:
         required: true
@@ -96,6 +100,9 @@ paths:
     put:
       operationId: updateBidang
       summary: Ubah bidang
+      description: |
+        Nama bidang harus unik di antara bidang aktif; duplikat dibalas `422`
+        (sejak `0.5.0`).
       tags: [bidang]
       requestBody:
         required: true
@@ -139,6 +146,9 @@ paths:
     post:
       operationId: createPegawai
       summary: Tambah pegawai
+      description: |
+        NIP harus unik di antara pegawai aktif dan `bidang_id` harus menunjuk
+        bidang aktif; pelanggaran dibalas `422` (sejak `0.5.0`).
       tags: [pegawai]
       requestBody:
         required: true
@@ -172,6 +182,9 @@ paths:
     put:
       operationId: updatePegawai
       summary: Ubah pegawai
+      description: |
+        NIP harus unik di antara pegawai aktif dan `bidang_id` harus menunjuk
+        bidang aktif; pelanggaran dibalas `422` (sejak `0.5.0`).
       tags: [pegawai]
       requestBody:
         required: true
@@ -248,10 +261,13 @@ components:
         valid tidak muncul.
 
         Mencakup tipe field salah, field tidak dikenal, `id` tidak valid, field
-        wajib kosong, melebihi panjang maksimum, tanggal tidak valid, dan `q` di
-        luar 3–100 karakter.
+        wajib kosong, melebihi panjang maksimum, tanggal tidak valid, `q` di
+        luar 3–100 karakter, nama bidang atau NIP yang sudah dipakai, dan
+        `bidang_id` yang tidak menunjuk bidang aktif.
 
-        Sejak `0.4.0` error validasi memakai `error.validations`.
+        Sejak `0.4.0` error validasi memakai `error.validations`. Sejak `0.5.0`
+        bentrok nilai unik dan referensi `bidang_id` yang tidak ada juga dibalas
+        `422`, bukan `500`.
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ValidationErrorResponse' }
@@ -331,7 +347,8 @@ components:
           maxLength: 150
           description: |
             Spasi di awal/akhir diabaikan. Kosong atau lebih dari 150 karakter
-            dibalas `422`.
+            dibalas `422`. Nama harus unik di antara bidang aktif; nilai yang
+            sudah dipakai dibalas `422`.
           examples: [Keuangan]
 
     BidangResponse:
@@ -417,7 +434,9 @@ components:
           type: integer
           format: int64
           minimum: 1
-          description: ID bidang tempat pegawai berada.
+          description: |
+            ID bidang aktif tempat pegawai berada. Nilai yang tidak menunjuk
+            bidang aktif dibalas `422`.
         nama:
           type: string
           minLength: 1
@@ -426,7 +445,9 @@ components:
           type: string
           minLength: 1
           maxLength: 50
-          description: Harus unik.
+          description: |
+            Harus unik di antara pegawai aktif; nilai yang sudah dipakai dibalas
+            `422`.
         tanggal_lahir: { $ref: '#/components/schemas/TanggalLahirInput' }
         alamat:
           type: string

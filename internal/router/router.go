@@ -19,8 +19,11 @@ import (
 // mirror api/openapi.yaml exactly, without trailing slashes. allowedOrigins is
 // the exact list of browser origins permitted by CORS.
 func New(db *bun.DB, allowedOrigins []string) http.Handler {
-	bidangHandler := handler.NewBidang(service.NewBidang(repository.NewBidangRepository(db)))
-	pegawaiHandler := handler.NewPegawai(service.NewPegawai(repository.NewPegawaiRepository(db)))
+	bidangRepo := repository.NewBidangRepository(db)
+	pegawaiRepo := repository.NewPegawaiRepository(db)
+
+	bidangHandler := handler.NewBidang(service.NewBidang(bidangRepo))
+	pegawaiHandler := handler.NewPegawai(service.NewPegawai(pegawaiRepo, bidangRepo))
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
