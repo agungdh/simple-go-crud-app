@@ -7,7 +7,8 @@ Panduan untuk agent yang bekerja di repo ini.
 | Topik | Intinya |
 | --- | --- |
 | Stack | Go + chi + Bun + SQLite (`modernc.org/sqlite`) + goose. Jangan ganti. |
-| Status | Kontrak, DTO, layer DB, service, handler, dan router sudah ada; server HTTP aktif di `:8080` |
+| Status | Kontrak, DTO, layer DB, service, handler, router, dan autentikasi sudah ada; server HTTP aktif di `:8080` |
+| Auth | Access token JWT + refresh token buram; role `admin` (baca/tulis) dan `user` (baca saja); semua endpoint data wajib login |
 | Cek cepat | `make help` (daftar target), `make check` (wajib sebelum selesai), `make api-validate` (Scalar, butuh Node.js) untuk kontrak |
 | DB | `persistence/db/app.db`, WAL, `synchronous=NORMAL`, `busy_timeout`, `foreign_keys=ON`, pool kecil |
 | Migration | `make migrate-create NAME=nama` → isi Up/Down → `make migrate-up` |
@@ -20,7 +21,7 @@ Panduan untuk agent yang bekerja di repo ini.
 | Query | **Jangan `SELECT *`**; pakai `Column(model.PublicColumns(...)...)` |
 | Cari | `search_text` (VIRTUAL) + FTS5 trigram `<tabel>_fts`; `?q=` wajib ≥3 karakter (kurang → `422`) |
 | FK | `ON UPDATE RESTRICT ON DELETE RESTRICT`, tipe `BIGINT`, beri index |
-| Error | Hanya `400`, `401`, `403`, `404`, `422`, `500`; `400`/`404`/`500` → `{"error": "..."}`, `422` → `{"error": {"validations": {"field": ["..."]}}}`; validasi termasuk unik/FK → `422`, error tak terduga → `500` |
+| Error | Hanya `400`, `401`, `403`, `404`, `422`, `500`; `400`/`401`/`403`/`404`/`500` → `{"error": "..."}`, `422` → `{"error": {"validations": {"field": ["..."]}}}`; validasi termasuk unik/FK → `422`, error tak terduga → `500` |
 | Test | DB sementara; tiap endpoint: happy path + error |
 | Jangan commit | `*.db*`, `bin/`, `.env`, file IDE |
 
@@ -67,7 +68,7 @@ melihat daftar target.
 
 | Perintah | Ekuivalen manual | Fungsi |
 | --- | --- | --- |
-| `make run` | `CORS_ORIGINS=http://localhost:8082 ADDR=:8080 DB_PATH=persistence/db/app.db go run .` | Buka database + migration, lalu jalankan server HTTP |
+| `make run` | `CORS_ORIGINS=http://localhost:8082 ADDR=:8080 DB_PATH=persistence/db/app.db JWT_SECRET=... ADMIN_PASSWORD=... go run .` | Buka database + migration, lalu jalankan server HTTP |
 | `make build` | `go build -trimpath -o bin/simple-go-crud-app .` | Build binary ke `bin/` |
 | `make test` | `go test ./...` | Jalankan semua test |
 | `make vet` | `go vet ./...` | Jalankan `go vet` |
@@ -107,6 +108,12 @@ lewat `go run`, jadi tidak perlu install goose. Override bila perlu, mis.
 | `DB_PATH` | `persistence/db/app.db` | `make run`, target migration |
 | `ADDR` | `:8080` | `make run` |
 | `CORS_ORIGINS` | `http://localhost:8082` | `make run` |
+| `JWT_SECRET` | — (wajib, minimal 32 byte) | `make run`, server |
+| `ACCESS_TOKEN_TTL` | `15m` | `make run`, server |
+| `REFRESH_TOKEN_TTL` | `168h` | `make run`, server |
+| `ADMIN_USERNAME` | `admin` | seed admin pertama saat startup |
+| `ADMIN_PASSWORD` | — (wajib saat belum ada user aktif) | seed admin pertama saat startup |
+| `ADMIN_NAME` | `Administrator` | seed admin pertama saat startup |
 | `NAME` | — (wajib) | `make migrate-create` |
 | `GOOSE` | `go run -tags '<GOOSE_TAGS>' github.com/pressly/goose/v3/cmd/goose@v3.30.0` | Target migration |
 | `DOCS_PORT` | `8082` | `make docs` |
@@ -118,8 +125,8 @@ Selalu jalankan `make check` (fmt, vet, test) sebelum selesai.
 
 - `main.go` — entrypoint; buka database, jalankan migration, dan nyalakan
   server HTTP (`ADDR`, default `:8080`) dengan graceful shutdown.
-- `internal/` — kode aplikasi: `database`, `model`, `repository`, `service`,
-  `handler`, `router`, `dto`, `apperr`, dan `testutil` (helper test).
+- `internal/` — kode aplikasi: `database`, `auth`, `model`, `repository`,
+  `service`, `handler`, `router`, `dto`, `apperr`, dan `testutil` (helper test).
 - `api/` — kontrak OpenAPI (`openapi.yaml`); sumber kebenaran bentuk API.
 - `internal/dto/` — struct request/response yang ditulis tangan setelah kontrak
   stabil; tidak ada kode generated dan tidak ada generator.
@@ -231,8 +238,10 @@ Setiap tabel **wajib** punya kolom audit berikut:
   response JSON maupun diterima dari request body. Pakai `json:"-"` pada field
   audit di model, atau map ke DTO response yang hanya berisi field publik.
 - Kolom audit tetap dipakai internal (filter soft delete, pengisian otomatis).
-- Semua entity **wajib embed `model.Base`** (`internal/model/base.go`); jangan
-  mendeklarasikan ulang `id` atau kolom audit.
+- Semua entity **bisnis wajib embed `model.Base`** (`internal/model/base.go`);
+  jangan mendeklarasikan ulang `id` atau kolom audit. Tabel teknis tanpa relasi
+  bisnis (mis. `refresh_token`) dikecualikan: cukup `id`, kolom teknis, dan
+  `created_at`; tidak perlu soft delete/audit lengkap.
 - Isi audit lewat `MarkCreated(actorID)`, `MarkUpdated(actorID)`, dan
   `MarkDeleted(actorID)`. Jangan mengisi manual.
 - Filter baca wajib memakai `model.Active(q)`; untuk query JOIN, filter juga
@@ -245,6 +254,8 @@ Setiap tabel **wajib** punya kolom audit berikut:
   tetap `NULL`.
 - Saat update: isi `updated_at` dan `updated_by`.
 - Soft delete: isi `deleted_at` dan `deleted_by`; **jangan** `DELETE` fisik.
+- Pengecualian tabel teknis: token/sesi seperti `refresh_token` dicabut dengan
+  `DELETE` fisik, bukan soft delete, dan tidak memakai kolom audit lengkap.
 - Query baca default wajib menambahkan `WHERE deleted_at IS NULL`.
 - Di model Bun, kolom nullable dipetakan ke pointer (`*int64`), bukan
   `time.Time`.
@@ -364,10 +375,9 @@ berikut). Aturan di bawah ini dipegang handler.
 - `POST` sukses `201` tanpa body, `PUT` sukses `200` tanpa body; data yang
   dibuat/diubah tidak dikembalikan sampai ada kebutuhan. `DELETE` membalas
   `204` tanpa body.
-- Error non-validasi (`400`, `404`, `500`, nanti `401`/`403`):
+- Error non-validasi (`400`, `401`, `403`, `404`, `500`):
   `{"error": "pesan"}`. Status **error** yang boleh dipakai hanya `400`, `401`,
-  `403`, `404`, `422`, dan `500`; `401`/`403` menyusul saat
-  autentikasi/otorisasi ditambahkan.
+  `403`, `404`, `422`, dan `500`.
 - Error validasi (`422`):
   `{"error": {"validations": {"field": ["pesan", ...]}}}`. Key adalah nama
   field JSON; value adalah daftar pesan, minimal satu. Kumpulkan semua error
@@ -398,6 +408,25 @@ berikut). Aturan di bawah ini dipegang handler.
 - Jangan expose kolom internal apa adanya. Boolean/enum dipetakan ke label
   Indonesia saat membentuk DTO, mis. `is_male` → `jenis_kelamin`:
   `Pria`/`Wanita`.
+
+#### Autentikasi
+
+- Endpoint publik hanya `POST /auth/login` dan `POST /auth/refresh`; endpoint
+  lain wajib memakai `Authorization: Bearer <access_token>`.
+- Access token adalah JWT HS256 berumur pendek (`ACCESS_TOKEN_TTL`, default
+  `15m`). Refresh token buram berumur panjang (`REFRESH_TOKEN_TTL`, default
+  `168h`), disimpan sebagai hash SHA-256 di `refresh_token`, dan dirotasi pada
+  setiap refresh.
+- Login gagal, access token tidak valid/kedaluwarsa, dan refresh token
+  dicabut/kedaluwarsa dibalas `401`. Token valid tetapi role tidak berhak
+  dibalas `403`.
+- Role `admin` boleh membaca dan menulis; role `user` hanya boleh `GET`.
+- Logout mencabut refresh token yang dikirim. Access token tetap valid sampai
+  `exp` karena JWT stateless.
+- Password disimpan sebagai hash bcrypt dan tidak pernah masuk response/log.
+- Admin pertama di-seed dari `ADMIN_USERNAME`/`ADMIN_PASSWORD`/`ADMIN_NAME`
+  hanya saat belum ada user aktif. Tidak ada endpoint manajemen user; akun role
+  `user` ditambahkan di luar API.
 
 #### Kontrak API (contract-first)
 

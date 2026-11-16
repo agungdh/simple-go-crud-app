@@ -28,7 +28,7 @@ func corsMiddleware(allowedOrigins []string) func(http.Handler) http.Handler {
 				header := w.Header()
 				header.Set("Access-Control-Allow-Origin", origin)
 				header.Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-				header.Set("Access-Control-Allow-Headers", "Content-Type")
+				header.Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 				header.Set("Access-Control-Max-Age", "300")
 
 				// Answer the preflight before chi routing; OPTIONS is not part of

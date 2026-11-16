@@ -108,6 +108,34 @@ func decodePegawaiInput(fields map[string]json.RawMessage) (dto.PegawaiInput, ap
 	}, errs
 }
 
+// decodeLoginInput maps the login body to the DTO and collects structural
+// problems (unknown fields and wrong JSON types).
+func decodeLoginInput(fields map[string]json.RawMessage) (dto.LoginInput, apperr.FieldErrors) {
+	errs := apperr.FieldErrors{}
+	rejectUnknown(fields, map[string]struct{}{
+		"username": {},
+		"password": {},
+	}, errs)
+
+	return dto.LoginInput{
+		Username: decodeString(fields, "username", "Username", errs),
+		Password: decodeString(fields, "password", "Password", errs),
+	}, errs
+}
+
+// decodeRefreshTokenInput maps the refresh/logout body to the DTO and collects
+// structural problems (unknown fields and wrong JSON types).
+func decodeRefreshTokenInput(fields map[string]json.RawMessage) (dto.RefreshTokenInput, apperr.FieldErrors) {
+	errs := apperr.FieldErrors{}
+	rejectUnknown(fields, map[string]struct{}{
+		"refresh_token": {},
+	}, errs)
+
+	return dto.RefreshTokenInput{
+		RefreshToken: decodeString(fields, "refresh_token", "Refresh token", errs),
+	}, errs
+}
+
 // combineValidation merges structural and semantic errors. Structural messages
 // (wrong type, unknown field) win for the same field so a field never reports
 // both "must be text" and "required".

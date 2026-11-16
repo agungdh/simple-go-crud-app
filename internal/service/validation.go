@@ -11,10 +11,13 @@ import (
 )
 
 const (
-	maxBidangLength = 150
-	maxNamaLength   = 150
-	maxNIPLength    = 50
-	maxAlamatLength = 500
+	maxBidangLength   = 150
+	maxNamaLength     = 150
+	maxNIPLength      = 50
+	maxAlamatLength   = 500
+	maxUsernameLength = 50
+
+	maxRefreshTokenLength = 512
 
 	minSearchLength = 3
 	maxSearchLength = 100

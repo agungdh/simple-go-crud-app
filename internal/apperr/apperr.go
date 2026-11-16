@@ -10,6 +10,13 @@ import (
 // responses.
 var (
 	ErrNotFound = errors.New("not found")
+	// ErrInvalidCredentials is returned when a login username/password pair is
+	// wrong. The HTTP layer maps it to 401 with a message that does not reveal
+	// whether the username exists.
+	ErrInvalidCredentials = errors.New("invalid credentials")
+	// ErrInvalidToken is returned when an access or refresh token is missing,
+	// malformed, expired, revoked, or belongs to an inactive user.
+	ErrInvalidToken = errors.New("invalid token")
 )
 
 // FieldErrors collects validation messages keyed by JSON field name. The key

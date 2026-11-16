@@ -53,6 +53,10 @@ WORKDIR /app
 # The SQLite database lives on a volume so migrations and data survive
 # container restarts. Mount it with owner 65532:65532 (or use the anonymous
 # volume created from this image).
+# Auth is configured from the environment. JWT_SECRET (at least 32 bytes) is
+# required. ADMIN_PASSWORD is required only on the first run, when the database
+# has no active user yet; the admin account is seeded once and then env values
+# are ignored. Never bake secrets into the image.
 ENV ADDR=:8080 \
     DB_PATH=/data/app.db \
     CORS_ORIGINS=http://localhost:8082

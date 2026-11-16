@@ -1,6 +1,7 @@
 package router_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -11,36 +12,119 @@ import (
 
 	"github.com/uptrace/bun"
 
+	"simple-go-crud-app/internal/auth"
 	"simple-go-crud-app/internal/dto"
+	"simple-go-crud-app/internal/model"
+	"simple-go-crud-app/internal/repository"
 	"simple-go-crud-app/internal/router"
 	"simple-go-crud-app/internal/testutil"
 )
 
 type testEnv struct {
-	t       *testing.T
-	db      *bun.DB
-	handler http.Handler
+	t          *testing.T
+	db         *bun.DB
+	handler    http.Handler
+	adminToken string
+	userToken  string
+	adminID    int64
+	userID     int64
 }
 
-const testOrigin = "http://localhost:8082"
+const (
+	testOrigin        = "http://localhost:8082"
+	testJWTSecret     = "test-jwt-secret-at-least-32-bytes-long"
+	testPassword      = "rahasia123"
+	testPasswordHash  = "$2a$10$2aCWNV5waxE3B8L1mqrXT.KOou13edRd/Noqjs6IIe385C0fLjJCe"
+	testAdminUsername = "admin"
+	testUserName      = "budi"
+	testAccessTTL     = 15 * time.Minute
+	testRefreshTTL    = 7 * 24 * time.Hour
+)
 
 func newTestEnv(t *testing.T) *testEnv {
 	t.Helper()
+
 	db := testutil.OpenDB(t)
-	return &testEnv{t: t, db: db, handler: router.New(db, []string{testOrigin})}
+	h, err := router.New(db, router.Config{
+		AllowedOrigins:  []string{testOrigin},
+		JWTSecret:       testJWTSecret,
+		AccessTokenTTL:  testAccessTTL,
+		RefreshTokenTTL: testRefreshTTL,
+	})
+	if err != nil {
+		t.Fatalf("build router: %v", err)
+	}
+
+	admin := seedUser(t, db, testAdminUsername, "Administrator", model.RoleAdmin)
+	user := seedUser(t, db, testUserName, "Budi Santoso", model.RoleUser)
+
+	tokens, err := auth.NewManager(testJWTSecret, testAccessTTL, testRefreshTTL)
+	if err != nil {
+		t.Fatalf("create token manager: %v", err)
+	}
+	adminToken, err := tokens.IssueAccess(admin)
+	if err != nil {
+		t.Fatalf("issue admin token: %v", err)
+	}
+	userToken, err := tokens.IssueAccess(user)
+	if err != nil {
+		t.Fatalf("issue user token: %v", err)
+	}
+
+	return &testEnv{
+		t:          t,
+		db:         db,
+		handler:    h,
+		adminToken: adminToken,
+		userToken:  userToken,
+		adminID:    admin.ID,
+		userID:     user.ID,
+	}
+}
+
+// seedUser inserts an account with the shared test password hash. Hashing once
+// keeps the test suite fast while still exercising bcrypt verification in the
+// login tests.
+func seedUser(t *testing.T, db *bun.DB, username, name, role string) *model.User {
+	t.Helper()
+
+	user := &model.User{
+		Username: username,
+		Password: testPasswordHash,
+		Name:     name,
+		Role:     role,
+	}
+	user.MarkCreated(0)
+	if err := repository.NewUserRepository(db).Create(context.Background(), user); err != nil {
+		t.Fatalf("create test user %q: %v", username, err)
+	}
+	return user
 }
 
 func (e *testEnv) do(method, path, body string) *httptest.ResponseRecorder {
 	e.t.Helper()
-	return e.doWithHeaders(method, path, body, nil)
+	return e.doAs(e.adminToken, method, path, body, nil)
+}
+
+func (e *testEnv) doAnon(method, path, body string) *httptest.ResponseRecorder {
+	e.t.Helper()
+	return e.doAs("", method, path, body, nil)
 }
 
 func (e *testEnv) doWithHeaders(method, path, body string, headers map[string]string) *httptest.ResponseRecorder {
+	e.t.Helper()
+	return e.doAs(e.adminToken, method, path, body, headers)
+}
+
+func (e *testEnv) doAs(token, method, path, body string, headers map[string]string) *httptest.ResponseRecorder {
 	e.t.Helper()
 
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")
+	}
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
 	}
 	for key, value := range headers {
 		req.Header.Set(key, value)
@@ -48,6 +132,17 @@ func (e *testEnv) doWithHeaders(method, path, body string, headers map[string]st
 	rec := httptest.NewRecorder()
 	e.handler.ServeHTTP(rec, req)
 	return rec
+}
+
+// login exercises the real login endpoint and returns the token pair.
+func (e *testEnv) login(username, password string) dto.TokenResponse {
+	e.t.Helper()
+
+	rec := e.doAnon(http.MethodPost, "/auth/login", fmt.Sprintf(
+		`{"username":%q,"password":%q}`, username, password,
+	))
+	requireStatus(e.t, rec, http.StatusOK)
+	return decodeJSON[dto.TokenResponse](e.t, rec)
 }
 
 func (e *testEnv) createBidang(name string) int64 {
@@ -162,8 +257,8 @@ func TestCORS(t *testing.T) {
 		if got := rec.Header().Get("Access-Control-Allow-Methods"); !strings.Contains(got, http.MethodPost) {
 			t.Errorf("Access-Control-Allow-Methods = %q, want it to contain POST", got)
 		}
-		if got := rec.Header().Get("Access-Control-Allow-Headers"); !strings.Contains(got, "Content-Type") {
-			t.Errorf("Access-Control-Allow-Headers = %q, want it to contain Content-Type", got)
+		if got := rec.Header().Get("Access-Control-Allow-Headers"); !strings.Contains(got, "Content-Type") || !strings.Contains(got, "Authorization") {
+			t.Errorf("Access-Control-Allow-Headers = %q, want it to contain Content-Type and Authorization", got)
 		}
 	})
 

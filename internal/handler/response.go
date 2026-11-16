@@ -14,9 +14,13 @@ import (
 )
 
 const (
-	messageBadBody  = "Body request tidak terbaca."
-	messageNotFound = "Data dengan id tersebut tidak ditemukan."
-	messageInternal = "Terjadi kesalahan di server."
+	messageBadBody            = "Body request tidak terbaca."
+	messageNotFound           = "Data dengan id tersebut tidak ditemukan."
+	messageInternal           = "Terjadi kesalahan di server."
+	messageInvalidCredentials = "Username atau password salah."
+	messageInvalidToken       = "Token tidak valid atau sudah kedaluwarsa."
+	messageAuthRequired       = "Autentikasi diperlukan."
+	messageForbidden          = "Akses ditolak."
 )
 
 // writeJSON writes a JSON payload with the given status.
@@ -58,6 +62,14 @@ func writeServiceError(w http.ResponseWriter, operation string, err error) {
 	var validations apperr.FieldErrors
 	if errors.As(err, &validations) && len(validations) > 0 {
 		writeValidation(w, validations)
+		return
+	}
+	if errors.Is(err, apperr.ErrInvalidCredentials) {
+		writeError(w, http.StatusUnauthorized, messageInvalidCredentials)
+		return
+	}
+	if errors.Is(err, apperr.ErrInvalidToken) {
+		writeError(w, http.StatusUnauthorized, messageInvalidToken)
 		return
 	}
 	if errors.Is(err, apperr.ErrNotFound) {

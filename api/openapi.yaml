@@ -2,36 +2,58 @@ openapi: 3.1.0
 
 info:
   title: Simple Go CRUD API
-  version: 0.5.0
+  version: 0.6.0
   description: |
-    Kontrak API untuk entitas `bidang` dan `pegawai`.
+    Kontrak API untuk autentikasi, entitas `bidang`, dan entitas `pegawai`.
 
     Dokumen ini hanya memuat hal yang dibutuhkan konsumen: bentuk request dan
     response, aturan validasi, serta status yang mungkin diterima.
 
+    ## Autentikasi (sejak `0.6.0`)
+
+    - `POST /auth/login` dan `POST /auth/refresh` bersifat publik.
+    - Endpoint lain wajib memakai header `Authorization: Bearer <access_token>`.
+    - Login dan refresh mengembalikan `access_token` (JWT berumur pendek) dan
+      `refresh_token` (token buram berumur panjang). Simpan `refresh_token` di
+      tempat aman; token ini hanya ditampilkan sekali.
+    - `POST /auth/refresh` merotasi refresh token: token yang dipakai langsung
+      tidak berlaku dan client harus menyimpan token baru.
+    - `POST /auth/logout` mencabut refresh token yang dikirim. Access token tetap
+      berlaku sampai kedaluwarsa karena tidak disimpan di server.
+    - Role `admin` boleh membaca dan menulis. Role `user` hanya boleh membaca
+      (`GET`).
+    - `401` dipakai untuk kredensial salah, access token tidak ada/tidak
+      valid/kedaluwarsa, atau refresh token tidak valid/dicabut.
+    - `403` dipakai saat token valid tetapi role tidak diizinkan menulis.
+
+    ## Bentuk umum response
+
     - Response `GET` sukses selalu dibungkus `{"data": ...}`.
-    - `POST` sukses membalas `201` dan `PUT` sukses membalas `200`, keduanya
-      tanpa body; data yang dibuat atau diubah tidak dikembalikan (sejak
-      `0.2.0`). Ambil datanya lewat endpoint `GET` bila dibutuhkan.
-    - Error `400`, `404`, dan `500` (nanti `401`/`403`) memakai
-      `{"error": "pesan"}` yang aman ditampilkan ke pengguna.
+    - `POST` bidang/pegawai sukses membalas `201` dan `PUT` sukses membalas
+      `200`, keduanya tanpa body; data yang dibuat atau diubah tidak
+      dikembalikan (sejak `0.2.0`). Ambil datanya lewat endpoint `GET` bila
+      dibutuhkan.
+    - `POST /auth/logout` dan `DELETE` membalas `204` tanpa body.
+    - Error `400`, `401`, `403`, `404`, dan `500` memakai `{"error": "pesan"}`
+      yang aman ditampilkan ke pengguna.
     - Error validasi (`422`) memakai
       `{"error": {"validations": {"<field>": ["pesan", ...]}}}` (sejak
       `0.4.0`); satu field bisa punya beberapa pesan.
     - Status error yang dipakai hanya `400`, `401`, `403`, `404`, `422`, dan
-      `500`. `401`/`403` menyusul saat autentikasi/otorisasi ditambahkan.
+      `500`.
     - `400` berarti body request tidak terbaca: JSON rusak, bukan satu objek
       JSON, lebih dari satu nilai, body kosong, atau body melebihi 1 MiB.
     - `422` berarti body terbaca tetapi isinya tidak valid: tipe salah, field
       tidak dikenal, `id` bukan bilangan bulat positif, field wajib kosong,
       panjang melebihi batas, tanggal tidak valid, `q` di luar 3–100 karakter,
-      nama bidang atau NIP yang sudah dipakai, atau `bidang_id` yang tidak
-      menunjuk bidang aktif.
+      nama bidang atau NIP yang sudah dipakai, `bidang_id` yang tidak menunjuk
+      bidang aktif, atau kredensial login yang kosong.
     - `404` berarti data dengan `id` tersebut tidak ditemukan.
     - `500` berarti terjadi kesalahan di server; detailnya tidak disertakan.
     - Tanggal pada response berformat `DD-MM-YYYY`; request menerima
       `DD-MM-YYYY` maupun `YYYY-MM-DD`.
-    - `DELETE` membalas `204` tanpa body.
+    - Kolom audit dan hash password tidak pernah muncul di request maupun
+      response.
   license:
     name: Proprietary
 
@@ -40,17 +62,103 @@ servers:
     description: Development lokal
 
 tags:
+  - name: auth
+    description: Login, refresh token, dan logout
   - name: bidang
     description: Data bidang/departemen
   - name: pegawai
     description: Data pegawai, selalu terikat ke satu bidang
 
 paths:
+  /auth/login:
+    post:
+      operationId: login
+      summary: Masuk
+      description: |
+        Menukar `username` dan `password` dengan sepasang access token dan
+        refresh token. Pesan `401` sengaja sama untuk username tidak dikenal
+        maupun password salah.
+      tags: [auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginInput' }
+            example:
+              username: admin
+              password: rahasia123
+      responses:
+        '200':
+          description: Login berhasil
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /auth/refresh:
+    post:
+      operationId: refreshToken
+      summary: Perbarui token
+      description: |
+        Menukar refresh token yang masih aktif dengan pasangan token baru.
+        Refresh token lama langsung dicabut (rotasi), jadi client wajib
+        menyimpan `refresh_token` dari response ini. Token yang tidak dikenal,
+        sudah dicabut, atau kedaluwarsa dibalas `401`.
+      tags: [auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshTokenInput' }
+      responses:
+        '200':
+          description: Token diperbarui
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /auth/logout:
+    post:
+      operationId: logout
+      summary: Keluar
+      description: |
+        Mencabut refresh token yang dikirim sehingga tidak bisa dipakai lagi.
+        Access token tetap berlaku sampai kedaluwarsa. Logout bersifat
+        idempotent: token yang sudah dicabut atau tidak dikenal tetap dibalas
+        `204`.
+      tags: [auth]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshTokenInput' }
+      responses:
+        '204':
+          description: Logout berhasil, tanpa body
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
   /bidang:
     get:
       operationId: listBidang
       summary: Daftar bidang
+      description: Boleh diakses role `admin` dan `user`.
       tags: [bidang]
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/Q'
       responses:
@@ -59,15 +167,18 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/BidangListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
     post:
       operationId: createBidang
       summary: Tambah bidang
       description: |
-        Nama bidang harus unik di antara bidang aktif; duplikat dibalas `422`
-        (sejak `0.5.0`).
+        Hanya role `admin`. Nama bidang harus unik di antara bidang aktif;
+        duplikat dibalas `422` (sejak `0.5.0`).
       tags: [bidang]
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -79,6 +190,8 @@ paths:
             Bidang dibuat. Response tanpa body dan tidak mengembalikan data
             sejak `0.2.0`; gunakan `GET /bidang/{id}` bila butuh detail.
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
@@ -88,22 +201,28 @@ paths:
     get:
       operationId: getBidang
       summary: Detail bidang
+      description: Boleh diakses role `admin` dan `user`.
       tags: [bidang]
+      security:
+        - bearerAuth: []
       responses:
         '200':
           description: Bidang ditemukan
           content:
             application/json:
               schema: { $ref: '#/components/schemas/BidangResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
     put:
       operationId: updateBidang
       summary: Ubah bidang
       description: |
-        Nama bidang harus unik di antara bidang aktif; duplikat dibalas `422`
-        (sejak `0.5.0`).
+        Hanya role `admin`. Nama bidang harus unik di antara bidang aktif;
+        duplikat dibalas `422` (sejak `0.5.0`).
       tags: [bidang]
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -115,16 +234,23 @@ paths:
             Bidang diperbarui. Response tanpa body dan tidak mengembalikan data
             sejak `0.2.0`.
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
     delete:
       operationId: deleteBidang
       summary: Hapus bidang
+      description: Hanya role `admin`.
       tags: [bidang]
+      security:
+        - bearerAuth: []
       responses:
         '204':
           description: Bidang berhasil dihapus
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
@@ -132,7 +258,10 @@ paths:
     get:
       operationId: listPegawai
       summary: Daftar pegawai
+      description: Boleh diakses role `admin` dan `user`.
       tags: [pegawai]
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/Q'
       responses:
@@ -141,15 +270,19 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/PegawaiListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
     post:
       operationId: createPegawai
       summary: Tambah pegawai
       description: |
-        NIP harus unik di antara pegawai aktif dan `bidang_id` harus menunjuk
-        bidang aktif; pelanggaran dibalas `422` (sejak `0.5.0`).
+        Hanya role `admin`. NIP harus unik di antara pegawai aktif dan
+        `bidang_id` harus menunjuk bidang aktif; pelanggaran dibalas `422`
+        (sejak `0.5.0`).
       tags: [pegawai]
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -161,6 +294,8 @@ paths:
             Pegawai dibuat. Response tanpa body dan tidak mengembalikan data
             sejak `0.2.0`; gunakan `GET /pegawai/{id}` bila butuh detail.
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
@@ -170,22 +305,29 @@ paths:
     get:
       operationId: getPegawai
       summary: Detail pegawai
+      description: Boleh diakses role `admin` dan `user`.
       tags: [pegawai]
+      security:
+        - bearerAuth: []
       responses:
         '200':
           description: Pegawai ditemukan
           content:
             application/json:
               schema: { $ref: '#/components/schemas/PegawaiResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
     put:
       operationId: updatePegawai
       summary: Ubah pegawai
       description: |
-        NIP harus unik di antara pegawai aktif dan `bidang_id` harus menunjuk
-        bidang aktif; pelanggaran dibalas `422` (sejak `0.5.0`).
+        Hanya role `admin`. NIP harus unik di antara pegawai aktif dan
+        `bidang_id` harus menunjuk bidang aktif; pelanggaran dibalas `422`
+        (sejak `0.5.0`).
       tags: [pegawai]
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -197,20 +339,36 @@ paths:
             Pegawai diperbarui. Response tanpa body dan tidak mengembalikan
             data sejak `0.2.0`.
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
     delete:
       operationId: deletePegawai
       summary: Hapus pegawai
+      description: Hanya role `admin`.
       tags: [pegawai]
+      security:
+        - bearerAuth: []
       responses:
         '204':
           description: Pegawai berhasil dihapus
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Access token JWT dari `POST /auth/login` atau `POST /auth/refresh`.
+        Kirim sebagai `Authorization: Bearer <access_token>`.
+
   parameters:
     Q:
       name: q
@@ -253,6 +411,26 @@ components:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
           example:
             error: Body request tidak terbaca.
+    Unauthorized:
+      description: |
+        Autentikasi gagal: kredensial login salah, access token tidak ada/tidak
+        valid/kedaluwarsa, atau refresh token tidak valid/dicabut/kedaluwarsa.
+        Response memakai `{"error": "..."}`.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example:
+            error: Username atau password salah.
+    Forbidden:
+      description: |
+        Token valid, tetapi role tidak diizinkan melakukan operasi ini. Role
+        `user` hanya boleh membaca; operasi tulis memerlukan role `admin`.
+        Response memakai `{"error": "..."}`.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example:
+            error: Akses ditolak.
     UnprocessableEntity:
       description: |
         Body terbaca sebagai satu objek JSON, tetapi isinya tidak valid. Response
@@ -319,6 +497,102 @@ components:
                 items:
                   type: string
                   minLength: 1
+
+    Role:
+      type: string
+      enum: [admin, user]
+      description: |
+        `admin` boleh membaca dan menulis. `user` hanya boleh membaca.
+
+    AuthUser:
+      type: object
+      additionalProperties: false
+      required: [id, username, name, role]
+      properties:
+        id:
+          type: integer
+          format: int64
+          minimum: 1
+          description: ID user.
+        username:
+          type: string
+          minLength: 1
+          maxLength: 50
+        name:
+          type: string
+          minLength: 1
+          maxLength: 150
+        role: { $ref: '#/components/schemas/Role' }
+
+    LoginInput:
+      type: object
+      additionalProperties: false
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          minLength: 1
+          maxLength: 50
+          description: |
+            Spasi di awal/akhir diabaikan. Username tidak dikenal dan password
+            salah sama-sama dibalas `401` dengan pesan yang sama.
+          examples: [admin]
+        password:
+          type: string
+          format: password
+          writeOnly: true
+          minLength: 1
+          maxLength: 72
+          description: |
+            Password mentah. Tidak pernah dikembalikan di response dan tidak
+            pernah dicatat di log.
+
+    RefreshTokenInput:
+      type: object
+      additionalProperties: false
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+          minLength: 1
+          maxLength: 512
+          description: |
+            Refresh token dari response login/refresh sebelumnya. Token ini
+            bersifat rahasia dan hanya ditampilkan sekali.
+
+    TokenResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - access_token
+        - refresh_token
+        - token_type
+        - expires_in
+        - refresh_expires_in
+        - user
+      properties:
+        access_token:
+          type: string
+          minLength: 1
+          description: 'JWT untuk header `Authorization: Bearer`.'
+        refresh_token:
+          type: string
+          minLength: 1
+          description: |
+            Token buram untuk `POST /auth/refresh` dan `POST /auth/logout`.
+            Simpan di tempat aman.
+        token_type:
+          type: string
+          enum: [Bearer]
+        expires_in:
+          type: integer
+          minimum: 1
+          description: Umur access token dalam detik.
+        refresh_expires_in:
+          type: integer
+          minimum: 1
+          description: Umur refresh token dalam detik.
+        user: { $ref: '#/components/schemas/AuthUser' }
 
     Bidang:
       type: object

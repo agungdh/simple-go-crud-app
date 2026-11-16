@@ -14,7 +14,9 @@ import (
 	"time"
 
 	"simple-go-crud-app/internal/database"
+	"simple-go-crud-app/internal/repository"
 	"simple-go-crud-app/internal/router"
+	"simple-go-crud-app/internal/service"
 )
 
 //go:embed migrations/*.sql
@@ -30,6 +32,15 @@ func run() error {
 	dbPath := envOr("DB_PATH", "persistence/db/app.db")
 	addr := envOr("ADDR", ":8080")
 	corsOrigins := splitList(envOr("CORS_ORIGINS", "http://localhost:8082"))
+	jwtSecret := os.Getenv("JWT_SECRET")
+	accessTTL, err := durationOr("ACCESS_TOKEN_TTL", "15m")
+	if err != nil {
+		return err
+	}
+	refreshTTL, err := durationOr("REFRESH_TOKEN_TTL", "168h")
+	if err != nil {
+		return err
+	}
 
 	db, err := database.Open(dbPath)
 	if err != nil {
@@ -41,9 +52,32 @@ func run() error {
 		return fmt.Errorf("migrate database: %w", err)
 	}
 
+	httpHandler, err := router.New(db, router.Config{
+		AllowedOrigins:  corsOrigins,
+		JWTSecret:       jwtSecret,
+		AccessTokenTTL:  accessTTL,
+		RefreshTokenTTL: refreshTTL,
+	})
+	if err != nil {
+		return fmt.Errorf("build router: %w", err)
+	}
+
+	adminUsername := envOr("ADMIN_USERNAME", "admin")
+	seeded, err := service.EnsureAdmin(context.Background(), repository.NewUserRepository(db), service.AdminSeed{
+		Username: adminUsername,
+		Password: os.Getenv("ADMIN_PASSWORD"),
+		Name:     envOr("ADMIN_NAME", "Administrator"),
+	})
+	if err != nil {
+		return fmt.Errorf("seed admin: %w", err)
+	}
+	if seeded {
+		log.Printf("seeded admin user %q", adminUsername)
+	}
+
 	server := &http.Server{
 		Addr:              addr,
-		Handler:           router.New(db, corsOrigins),
+		Handler:           httpHandler,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -86,6 +120,15 @@ func envOr(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+// durationOr parses a duration env value, using fallback when it is empty.
+func durationOr(key, fallback string) (time.Duration, error) {
+	parsed, err := time.ParseDuration(envOr(key, fallback))
+	if err != nil {
+		return 0, fmt.Errorf("parse %s: %w", key, err)
+	}
+	return parsed, nil
 }
 
 // splitList turns a comma-separated env value into a trimmed list, dropping
