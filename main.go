@@ -3,31 +3,80 @@ package main
 import (
 	"context"
 	"embed"
+	"errors"
+	"fmt"
 	"log"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"simple-go-crud-app/internal/database"
+	"simple-go-crud-app/internal/router"
 )
 
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatalf("server: %v", err)
+	}
+}
+
+func run() error {
 	dbPath := envOr("DB_PATH", "persistence/db/app.db")
-	ctx := context.Background()
+	addr := envOr("ADDR", ":8080")
 
 	db, err := database.Open(dbPath)
 	if err != nil {
-		log.Fatalf("open database: %v", err)
+		return fmt.Errorf("open database: %w", err)
 	}
 	defer db.Close()
 
-	if err := database.Migrate(ctx, db, migrationsFS, "migrations"); err != nil {
-		log.Fatalf("migrate database: %v", err)
+	if err := database.Migrate(context.Background(), db, migrationsFS, "migrations"); err != nil {
+		return fmt.Errorf("migrate database: %w", err)
 	}
 
-	// The HTTP layer is not wired yet; the contract lives in api/openapi.yaml.
-	log.Printf("database ready: %s", dbPath)
+	server := &http.Server{
+		Addr:              addr,
+		Handler:           router.New(db),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	serveErr := make(chan error, 1)
+	go func() {
+		log.Printf("listening on %s (database %s)", addr, dbPath)
+		serveErr <- server.ListenAndServe()
+	}()
+
+	select {
+	case err := <-serveErr:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return fmt.Errorf("serve http: %w", err)
+		}
+		return nil
+	case <-ctx.Done():
+		log.Printf("shutting down http server")
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		return fmt.Errorf("shutdown http server: %w", err)
+	}
+
+	if err := <-serveErr; err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return fmt.Errorf("serve http: %w", err)
+	}
+	return nil
 }
 
 func envOr(key, fallback string) string {

@@ -3,6 +3,7 @@ module simple-go-crud-app
 go 1.27.4
 
 require (
+	github.com/go-chi/chi/v5 v5.5.0
 	github.com/pressly/goose/v3 v3.30.0
 	github.com/uptrace/bun v1.3.0
 	github.com/uptrace/bun/dialect/sqlitedialect v1.3.0
