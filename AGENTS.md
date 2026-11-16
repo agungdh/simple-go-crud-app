@@ -424,6 +424,9 @@ berikut). Aturan di bawah ini dipegang handler.
 - Logout mencabut refresh token yang dikirim. Access token tetap valid sampai
   `exp` karena JWT stateless.
 - Password disimpan sebagai hash bcrypt dan tidak pernah masuk response/log.
+- Kolom audit `created_by`/`updated_by`/`deleted_by` pada endpoint tulis diisi
+  `id` user dari access token; seed admin pertama dicatat sebagai aksi sistem
+  (`NULL`).
 - Admin pertama di-seed dari `ADMIN_USERNAME`/`ADMIN_PASSWORD`/`ADMIN_NAME`
   hanya saat belum ada user aktif. Tidak ada endpoint manajemen user; akun role
   `user` ditambahkan di luar API.

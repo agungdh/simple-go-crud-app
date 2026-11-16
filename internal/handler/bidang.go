@@ -43,6 +43,11 @@ func (h *Bidang) Get(w http.ResponseWriter, r *http.Request) {
 
 // Create handles POST /bidang.
 func (h *Bidang) Create(w http.ResponseWriter, r *http.Request) {
+	actor, ok := requireActor(w, r)
+	if !ok {
+		return
+	}
+
 	fields, ok := readObject(w, r)
 	if !ok {
 		return
@@ -55,7 +60,7 @@ func (h *Bidang) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.service.Create(r.Context(), input); err != nil {
+	if err := h.service.Create(r.Context(), input, actor); err != nil {
 		writeServiceError(w, "create bidang", err)
 		return
 	}
@@ -64,6 +69,11 @@ func (h *Bidang) Create(w http.ResponseWriter, r *http.Request) {
 
 // Update handles PUT /bidang/{id}.
 func (h *Bidang) Update(w http.ResponseWriter, r *http.Request) {
+	actor, ok := requireActor(w, r)
+	if !ok {
+		return
+	}
+
 	id, ok := parseID(w, r)
 	if !ok {
 		return
@@ -81,7 +91,7 @@ func (h *Bidang) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.service.Update(r.Context(), id, input); err != nil {
+	if err := h.service.Update(r.Context(), id, input, actor); err != nil {
 		writeServiceError(w, "update bidang", err)
 		return
 	}
@@ -90,12 +100,17 @@ func (h *Bidang) Update(w http.ResponseWriter, r *http.Request) {
 
 // Delete handles DELETE /bidang/{id}.
 func (h *Bidang) Delete(w http.ResponseWriter, r *http.Request) {
+	actor, ok := requireActor(w, r)
+	if !ok {
+		return
+	}
+
 	id, ok := parseID(w, r)
 	if !ok {
 		return
 	}
 
-	if err := h.service.Delete(r.Context(), id); err != nil {
+	if err := h.service.Delete(r.Context(), id, actor); err != nil {
 		writeServiceError(w, "delete bidang", err)
 		return
 	}

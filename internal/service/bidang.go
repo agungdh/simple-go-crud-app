@@ -60,8 +60,9 @@ func (s *BidangService) Get(ctx context.Context, id int64) (dto.Bidang, error) {
 	return dto.Bidang{ID: item.ID, Bidang: item.Bidang}, nil
 }
 
-// Create validates and inserts a new bidang.
-func (s *BidangService) Create(ctx context.Context, input dto.BidangInput) error {
+// Create validates and inserts a new bidang. actorID is stored in the audit
+// columns as created_by.
+func (s *BidangService) Create(ctx context.Context, input dto.BidangInput, actorID int64) error {
 	value, err := validateBidangInput(input)
 	if err != nil {
 		return err
@@ -76,7 +77,7 @@ func (s *BidangService) Create(ctx context.Context, input dto.BidangInput) error
 	}
 
 	item := &model.Bidang{Bidang: value}
-	item.MarkCreated(0)
+	item.MarkCreated(actorID)
 	if err := s.repo.Create(ctx, item); err != nil {
 		// Re-check on write failure so a concurrent insert still returns a
 		// validation error instead of leaking a database error as 500.
@@ -89,7 +90,8 @@ func (s *BidangService) Create(ctx context.Context, input dto.BidangInput) error
 }
 
 // Update validates and replaces the editable fields of an active bidang.
-func (s *BidangService) Update(ctx context.Context, id int64, input dto.BidangInput) error {
+// actorID is stored in the audit columns as updated_by.
+func (s *BidangService) Update(ctx context.Context, id int64, input dto.BidangInput, actorID int64) error {
 	value, err := validateBidangInput(input)
 	if err != nil {
 		return err
@@ -104,7 +106,7 @@ func (s *BidangService) Update(ctx context.Context, id int64, input dto.BidangIn
 	}
 
 	item := &model.Bidang{Base: model.Base{ID: id}, Bidang: value}
-	item.MarkUpdated(0)
+	item.MarkUpdated(actorID)
 	if err := s.repo.Update(ctx, item); err != nil {
 		if duplicate, checkErr := s.duplicateError(ctx, value, id); checkErr == nil && duplicate != nil {
 			return duplicate
@@ -114,7 +116,7 @@ func (s *BidangService) Update(ctx context.Context, id int64, input dto.BidangIn
 	return nil
 }
 
-// Delete soft deletes an active bidang.
-func (s *BidangService) Delete(ctx context.Context, id int64) error {
-	return s.repo.Delete(ctx, id, 0)
+// Delete soft deletes an active bidang and records deleted_by.
+func (s *BidangService) Delete(ctx context.Context, id, actorID int64) error {
+	return s.repo.Delete(ctx, id, actorID)
 }

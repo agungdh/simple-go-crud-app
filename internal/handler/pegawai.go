@@ -43,6 +43,11 @@ func (h *Pegawai) Get(w http.ResponseWriter, r *http.Request) {
 
 // Create handles POST /pegawai.
 func (h *Pegawai) Create(w http.ResponseWriter, r *http.Request) {
+	actor, ok := requireActor(w, r)
+	if !ok {
+		return
+	}
+
 	fields, ok := readObject(w, r)
 	if !ok {
 		return
@@ -55,7 +60,7 @@ func (h *Pegawai) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.service.Create(r.Context(), input); err != nil {
+	if err := h.service.Create(r.Context(), input, actor); err != nil {
 		writeServiceError(w, "create pegawai", err)
 		return
 	}
@@ -64,6 +69,11 @@ func (h *Pegawai) Create(w http.ResponseWriter, r *http.Request) {
 
 // Update handles PUT /pegawai/{id}.
 func (h *Pegawai) Update(w http.ResponseWriter, r *http.Request) {
+	actor, ok := requireActor(w, r)
+	if !ok {
+		return
+	}
+
 	id, ok := parseID(w, r)
 	if !ok {
 		return
@@ -81,7 +91,7 @@ func (h *Pegawai) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.service.Update(r.Context(), id, input); err != nil {
+	if err := h.service.Update(r.Context(), id, input, actor); err != nil {
 		writeServiceError(w, "update pegawai", err)
 		return
 	}
@@ -90,12 +100,17 @@ func (h *Pegawai) Update(w http.ResponseWriter, r *http.Request) {
 
 // Delete handles DELETE /pegawai/{id}.
 func (h *Pegawai) Delete(w http.ResponseWriter, r *http.Request) {
+	actor, ok := requireActor(w, r)
+	if !ok {
+		return
+	}
+
 	id, ok := parseID(w, r)
 	if !ok {
 		return
 	}
 
-	if err := h.service.Delete(r.Context(), id); err != nil {
+	if err := h.service.Delete(r.Context(), id, actor); err != nil {
 		writeServiceError(w, "delete pegawai", err)
 		return
 	}

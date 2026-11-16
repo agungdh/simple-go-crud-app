@@ -80,8 +80,9 @@ func (s *PegawaiService) Get(ctx context.Context, id int64) (dto.Pegawai, error)
 	return toPegawaiDTO(*item), nil
 }
 
-// Create validates and inserts a new pegawai.
-func (s *PegawaiService) Create(ctx context.Context, input dto.PegawaiInput) error {
+// Create validates and inserts a new pegawai. actorID is stored in the audit
+// columns as created_by.
+func (s *PegawaiService) Create(ctx context.Context, input dto.PegawaiInput, actorID int64) error {
 	fields, err := validatePegawaiInput(input)
 	if err != nil {
 		return err
@@ -103,7 +104,7 @@ func (s *PegawaiService) Create(ctx context.Context, input dto.PegawaiInput) err
 		Alamat:       fields.Alamat,
 		IsMale:       fields.IsMale,
 	}
-	item.MarkCreated(0)
+	item.MarkCreated(actorID)
 	if err := s.repo.Create(ctx, item); err != nil {
 		// Re-check on write failure so a concurrent insert still returns a
 		// validation error instead of leaking a database error as 500.
@@ -116,7 +117,8 @@ func (s *PegawaiService) Create(ctx context.Context, input dto.PegawaiInput) err
 }
 
 // Update validates and replaces the editable fields of an active pegawai.
-func (s *PegawaiService) Update(ctx context.Context, id int64, input dto.PegawaiInput) error {
+// actorID is stored in the audit columns as updated_by.
+func (s *PegawaiService) Update(ctx context.Context, id int64, input dto.PegawaiInput, actorID int64) error {
 	fields, err := validatePegawaiInput(input)
 	if err != nil {
 		return err
@@ -139,7 +141,7 @@ func (s *PegawaiService) Update(ctx context.Context, id int64, input dto.Pegawai
 		Alamat:       fields.Alamat,
 		IsMale:       fields.IsMale,
 	}
-	item.MarkUpdated(0)
+	item.MarkUpdated(actorID)
 	if err := s.repo.Update(ctx, item); err != nil {
 		if referenceErrs, checkErr := s.referenceErrors(ctx, fields, id); checkErr == nil && referenceErrs != nil {
 			return referenceErrs
@@ -149,9 +151,9 @@ func (s *PegawaiService) Update(ctx context.Context, id int64, input dto.Pegawai
 	return nil
 }
 
-// Delete soft deletes an active pegawai.
-func (s *PegawaiService) Delete(ctx context.Context, id int64) error {
-	return s.repo.Delete(ctx, id, 0)
+// Delete soft deletes an active pegawai and records deleted_by.
+func (s *PegawaiService) Delete(ctx context.Context, id, actorID int64) error {
+	return s.repo.Delete(ctx, id, actorID)
 }
 
 // toPegawaiDTO maps stored values to the client representation: business dates

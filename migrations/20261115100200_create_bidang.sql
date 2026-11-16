@@ -50,5 +50,6 @@ END;
 -- +goose StatementEnd
 
 -- +goose Down
-DROP TABLE IF EXISTS bidang;
+-- Drop the FTS index before its external content table.
 DROP TABLE IF EXISTS bidang_fts;
+DROP TABLE IF EXISTS bidang;

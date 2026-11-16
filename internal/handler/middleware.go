@@ -52,6 +52,18 @@ func RequireAdmin(next http.Handler) http.Handler {
 	})
 }
 
+// requireActor returns the authenticated user's id for audit columns. It
+// writes 401 when the request somehow lacks a user; protected routes already
+// enforce this in RequireAuth, so the fallback only guards future wiring.
+func requireActor(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	user, ok := auth.UserFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, messageAuthRequired)
+		return 0, false
+	}
+	return user.ID, true
+}
+
 // bearerToken extracts the token from an Authorization header. The scheme is
 // case-insensitive and the token itself must not contain whitespace.
 func bearerToken(header string) (string, bool) {
