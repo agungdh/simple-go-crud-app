@@ -76,7 +76,7 @@ melihat daftar target.
 | `make fmt-check` | `gofmt -l .` (harus kosong) | Cek format tanpa mengubah file |
 | `make tidy` | `go mod tidy` | Rapikan `go.mod` dan `go.sum` |
 | `make api-validate` | `npx @scalar/cli document validate api/openapi.yaml` | Validasi kontrak OpenAPI (butuh Node.js) |
-| `make docs` | `npx @scalar/cli document serve api/openapi.yaml -p 8082` | Preview kontrak + "Test Request" di <http://localhost:8082> (butuh Node.js) |
+| `make docs` | `npx @scalar/cli document serve api/openapi.yaml --config api/scalar.config.json -p 8082` | Preview kontrak + "Test Request" di <http://localhost:8082> (butuh Node.js) |
 | `make mock` | `npx @scalar/cli document mock api/openapi.yaml -p 8081` | Mock server dari kontrak di <http://127.0.0.1:8081> |
 | `make check` | `make fmt-check vet test` | Format, vet, dan test sekaligus |
 | `make clean` | `rm -rf bin` | Hapus hasil build |
@@ -128,6 +128,8 @@ Selalu jalankan `make check` (fmt, vet, test) sebelum selesai.
 - `internal/` — kode aplikasi: `database`, `auth`, `model`, `repository`,
   `service`, `handler`, `router`, `dto`, `apperr`, dan `testutil` (helper test).
 - `api/` — kontrak OpenAPI (`openapi.yaml`); sumber kebenaran bentuk API.
+  `api/scalar.config.json` hanya mengatur UI Scalar (skema auth global dan
+  persistensi token), bukan bagian dari kontrak.
 - `internal/dto/` — struct request/response yang ditulis tangan setelah kontrak
   stabil; tidak ada kode generated dan tidak ada generator.
 - `migrations/` — file migration goose.
@@ -428,6 +430,9 @@ berikut). Aturan di bawah ini dipegang handler.
   panggil `POST /auth/login`, salin `access_token`, dan tempel ke skema
   `bearerAuth`. Refresh token hanya dipakai untuk refresh/logout. Contoh
   kredensial dev ada di `Makefile` (`ADMIN_USERNAME`/`ADMIN_PASSWORD`).
+- Auth global di Scalar berasal dari `security` di root `api/openapi.yaml` dan
+  `components.securitySchemes.bearerAuth`. `api/scalar.config.json` memilih
+  skema itu secara global dan menyimpan token di browser (`persistAuth`).
 - Kolom audit `created_by`/`updated_by`/`deleted_by` pada endpoint tulis diisi
   `id` user dari access token; seed admin pertama dicatat sebagai aksi sistem
   (`NULL`).

@@ -70,7 +70,7 @@ api-validate: ## Validasi kontrak OpenAPI dengan Scalar (butuh Node.js)
 	$(SCALAR) document validate api/openapi.yaml
 
 docs: ## Preview kontrak + coba request di browser (butuh Node.js, port 8082)
-	$(SCALAR) document serve api/openapi.yaml --port $(DOCS_PORT) --watch
+	$(SCALAR) document serve api/openapi.yaml --config api/scalar.config.json --port $(DOCS_PORT) --watch
 
 mock: ## Mock server dari kontrak, untuk FE sebelum BE ada (port 8081)
 	$(SCALAR) document mock api/openapi.yaml --port $(MOCK_PORT)

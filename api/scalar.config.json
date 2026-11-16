@@ -1,0 +1,6 @@
+{
+  "authentication": {
+    "preferredSecurityScheme": "bearerAuth"
+  },
+  "persistAuth": true
+}
