@@ -1,7 +1,6 @@
 package router
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -15,6 +14,7 @@ import (
 	"simple-go-crud-app/internal/auth"
 	"simple-go-crud-app/internal/bidang"
 	"simple-go-crud-app/internal/pegawai"
+	"simple-go-crud-app/internal/shared/httpx"
 )
 
 // Config holds the settings required to build the HTTP router.
@@ -106,17 +106,9 @@ func recoverer(next http.Handler) http.Handler {
 			if wrapped.Status() != 0 {
 				return
 			}
-			body, err := json.Marshal(map[string]string{
-				"error": "Terjadi kesalahan di server.",
+			httpx.WriteJSON(wrapped, http.StatusInternalServerError, httpx.ErrorResponse{
+				Error: httpx.MessageInternal,
 			})
-			if err != nil {
-				return
-			}
-			wrapped.Header().Set("Content-Type", "application/json")
-			wrapped.WriteHeader(http.StatusInternalServerError)
-			if _, err := wrapped.Write(body); err != nil {
-				log.Printf("write panic response: %v", err)
-			}
 		}()
 
 		next.ServeHTTP(wrapped, r)

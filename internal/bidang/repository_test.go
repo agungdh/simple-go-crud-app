@@ -2,7 +2,6 @@ package bidang_test
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	"simple-go-crud-app/internal/bidang"
@@ -18,7 +17,7 @@ func TestCreatePreservesDatabaseError(t *testing.T) {
 	}
 
 	err := repo.Create(ctx, newEntity("SDM"))
-	requireErrorContains(t, err, "insert bidang", "unique constraint failed")
+	testutil.RequireErrorContains(t, err, "insert bidang", "unique constraint failed")
 }
 
 func TestUpdatePreservesDatabaseError(t *testing.T) {
@@ -37,25 +36,11 @@ func TestUpdatePreservesDatabaseError(t *testing.T) {
 	second.Bidang = "SDM"
 	second.MarkUpdated(0)
 	err := repo.Update(ctx, second)
-	requireErrorContains(t, err, "update bidang", "unique constraint failed")
+	testutil.RequireErrorContains(t, err, "update bidang", "unique constraint failed")
 }
 
 func newEntity(name string) *bidang.Entity {
 	entity := &bidang.Entity{Bidang: name}
 	entity.MarkCreated(0)
 	return entity
-}
-
-func requireErrorContains(t *testing.T, err error, parts ...string) {
-	t.Helper()
-
-	if err == nil {
-		t.Fatal("expected an error, got nil")
-	}
-	message := strings.ToLower(err.Error())
-	for _, part := range parts {
-		if !strings.Contains(message, strings.ToLower(part)) {
-			t.Errorf("error %q does not contain %q", err, part)
-		}
-	}
 }

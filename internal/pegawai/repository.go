@@ -9,6 +9,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"simple-go-crud-app/internal/shared/apperr"
+	"simple-go-crud-app/internal/shared/database"
 	"simple-go-crud-app/internal/shared/entity"
 	"simple-go-crud-app/internal/shared/search"
 )
@@ -105,15 +106,7 @@ func (r *Repository) Update(ctx context.Context, pegawai *Entity) error {
 	if err != nil {
 		return fmt.Errorf("update pegawai %d: %w", pegawai.ID, err)
 	}
-
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("update pegawai %d rows affected: %w", pegawai.ID, err)
-	}
-	if affected == 0 {
-		return apperr.ErrNotFound
-	}
-	return nil
+	return database.AffectedOrNotFound(res, fmt.Sprintf("update pegawai %d", pegawai.ID))
 }
 
 // Delete soft deletes an active pegawai.
@@ -130,13 +123,5 @@ func (r *Repository) Delete(ctx context.Context, id, actorID int64) error {
 	if err != nil {
 		return fmt.Errorf("delete pegawai %d: %w", id, err)
 	}
-
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("delete pegawai %d rows affected: %w", id, err)
-	}
-	if affected == 0 {
-		return apperr.ErrNotFound
-	}
-	return nil
+	return database.AffectedOrNotFound(res, fmt.Sprintf("delete pegawai %d", id))
 }

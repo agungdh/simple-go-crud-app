@@ -9,6 +9,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"simple-go-crud-app/internal/shared/apperr"
+	"simple-go-crud-app/internal/shared/database"
 )
 
 // RefreshTokenRepository persists opaque refresh tokens. Rows are hard deleted
@@ -64,15 +65,7 @@ func (r *RefreshTokenRepository) RevokeByHash(ctx context.Context, hash string, 
 	if err != nil {
 		return fmt.Errorf("revoke refresh token: %w", err)
 	}
-
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("revoke refresh token rows affected: %w", err)
-	}
-	if affected == 0 {
-		return apperr.ErrNotFound
-	}
-	return nil
+	return database.AffectedOrNotFound(res, "revoke refresh token")
 }
 
 // Rotate deletes the old refresh token and inserts its replacement in one
@@ -88,13 +81,8 @@ func (r *RefreshTokenRepository) Rotate(ctx context.Context, oldHash string, use
 		if err != nil {
 			return fmt.Errorf("consume refresh token: %w", err)
 		}
-
-		affected, err := res.RowsAffected()
-		if err != nil {
-			return fmt.Errorf("consume refresh token rows affected: %w", err)
-		}
-		if affected == 0 {
-			return apperr.ErrNotFound
+		if err := database.AffectedOrNotFound(res, "consume refresh token"); err != nil {
+			return err
 		}
 
 		if _, err := tx.NewInsert().

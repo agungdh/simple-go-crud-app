@@ -2,7 +2,6 @@ package pegawai_test
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	"simple-go-crud-app/internal/pegawai"
@@ -24,19 +23,5 @@ func TestCreatePreservesForeignKeyError(t *testing.T) {
 	item.MarkCreated(0)
 
 	err := repo.Create(ctx, item)
-	requireErrorContains(t, err, "insert pegawai", "foreign key constraint failed")
-}
-
-func requireErrorContains(t *testing.T, err error, parts ...string) {
-	t.Helper()
-
-	if err == nil {
-		t.Fatal("expected an error, got nil")
-	}
-	message := strings.ToLower(err.Error())
-	for _, part := range parts {
-		if !strings.Contains(message, strings.ToLower(part)) {
-			t.Errorf("error %q does not contain %q", err, part)
-		}
-	}
+	testutil.RequireErrorContains(t, err, "insert pegawai", "foreign key constraint failed")
 }

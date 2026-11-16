@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/uptrace/bun"
@@ -44,4 +45,20 @@ func repoRoot(t *testing.T) string {
 		t.Fatal("resolve testutil path")
 	}
 	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..", ".."))
+}
+
+// RequireErrorContains asserts that err is non-nil and that its message
+// contains every part, compared case-insensitively.
+func RequireErrorContains(t *testing.T, err error, parts ...string) {
+	t.Helper()
+
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+	message := strings.ToLower(err.Error())
+	for _, part := range parts {
+		if !strings.Contains(message, strings.ToLower(part)) {
+			t.Errorf("error %q does not contain %q", err, part)
+		}
+	}
 }

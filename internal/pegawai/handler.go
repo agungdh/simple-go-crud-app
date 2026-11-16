@@ -45,22 +45,13 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 
 // Create handles POST /pegawai.
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
-	actor, ok := auth.ActorID(r.Context())
-	if !ok {
-		httpx.WriteError(w, http.StatusUnauthorized, httpx.MessageAuthRequired)
-		return
-	}
-
-	fields, ok := httpx.ReadObject(w, r)
+	actor, ok := auth.RequireActor(w, r)
 	if !ok {
 		return
 	}
 
-	input, structural := decodeInput(fields)
-	if structural.Any() {
-		_, semantic := validateInput(input)
-		err := httpx.CombineValidation(structural, semantic)
-		httpx.WriteServiceError(w, "validate pegawai", err)
+	input, ok := httpx.ReadInput(w, r, decodeInput, validateInput)
+	if !ok {
 		return
 	}
 
@@ -73,9 +64,8 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 // Update handles PUT /pegawai/{id}.
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
-	actor, ok := auth.ActorID(r.Context())
+	actor, ok := auth.RequireActor(w, r)
 	if !ok {
-		httpx.WriteError(w, http.StatusUnauthorized, httpx.MessageAuthRequired)
 		return
 	}
 
@@ -84,16 +74,8 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fields, ok := httpx.ReadObject(w, r)
+	input, ok := httpx.ReadInput(w, r, decodeInput, validateInput)
 	if !ok {
-		return
-	}
-
-	input, structural := decodeInput(fields)
-	if structural.Any() {
-		_, semantic := validateInput(input)
-		err := httpx.CombineValidation(structural, semantic)
-		httpx.WriteServiceError(w, "validate pegawai", err)
 		return
 	}
 
@@ -106,9 +88,8 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 
 // Delete handles DELETE /pegawai/{id}.
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
-	actor, ok := auth.ActorID(r.Context())
+	actor, ok := auth.RequireActor(w, r)
 	if !ok {
-		httpx.WriteError(w, http.StatusUnauthorized, httpx.MessageAuthRequired)
 		return
 	}
 

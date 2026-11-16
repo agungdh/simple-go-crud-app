@@ -9,6 +9,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"simple-go-crud-app/internal/shared/apperr"
+	"simple-go-crud-app/internal/shared/database"
 	"simple-go-crud-app/internal/shared/entity"
 	"simple-go-crud-app/internal/shared/search"
 )
@@ -120,15 +121,7 @@ func (r *Repository) Update(ctx context.Context, bidang *Entity) error {
 	if err != nil {
 		return fmt.Errorf("update bidang %d: %w", bidang.ID, err)
 	}
-
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("update bidang %d rows affected: %w", bidang.ID, err)
-	}
-	if affected == 0 {
-		return apperr.ErrNotFound
-	}
-	return nil
+	return database.AffectedOrNotFound(res, fmt.Sprintf("update bidang %d", bidang.ID))
 }
 
 // Delete soft deletes an active bidang.
@@ -145,13 +138,5 @@ func (r *Repository) Delete(ctx context.Context, id, actorID int64) error {
 	if err != nil {
 		return fmt.Errorf("delete bidang %d: %w", id, err)
 	}
-
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("delete bidang %d rows affected: %w", id, err)
-	}
-	if affected == 0 {
-		return apperr.ErrNotFound
-	}
-	return nil
+	return database.AffectedOrNotFound(res, fmt.Sprintf("delete bidang %d", id))
 }

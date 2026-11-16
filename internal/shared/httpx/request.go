@@ -32,6 +32,40 @@ func ReadObject(w http.ResponseWriter, r *http.Request) (map[string]json.RawMess
 	return fields, true
 }
 
+// ReadInput reads one JSON object and maps it to T with decode. When the shape
+// is wrong, it merges structural and semantic validation into a single 422 so
+// the client sees every problem at once. It writes the error response itself
+// and reports ok=false when the caller must return early.
+//
+// V is whatever validate returns as its first value; only the error matters
+// here, because normalized values are produced again by the service.
+//
+// Semantic validation normally runs inside the service. It is repeated here
+// only because structural errors would otherwise mask them.
+func ReadInput[T, V any](
+	w http.ResponseWriter,
+	r *http.Request,
+	decode func(map[string]json.RawMessage) (T, apperr.FieldErrors),
+	validate func(T) (V, error),
+) (T, bool) {
+	var zero T
+
+	fields, ok := ReadObject(w, r)
+	if !ok {
+		return zero, false
+	}
+
+	input, structural := decode(fields)
+	if structural.Any() {
+		_, semantic := validate(input)
+		if merged := CombineValidation(structural, semantic); merged != nil {
+			WriteServiceError(w, "validate request", merged)
+			return zero, false
+		}
+	}
+	return input, true
+}
+
 // RejectUnknown adds a 422 message for every key that is not in allowed.
 func RejectUnknown(fields map[string]json.RawMessage, allowed map[string]struct{}, errs apperr.FieldErrors) {
 	for name := range fields {

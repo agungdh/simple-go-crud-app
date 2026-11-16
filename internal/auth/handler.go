@@ -15,18 +15,22 @@ func NewHandler(svc *Service) *Handler {
 	return &Handler{service: svc}
 }
 
+// RequireActor resolves the authenticated actor for write handlers. Protected
+// routes already guarantee it; this guards future wiring and keeps handlers
+// free of the 401 boilerplate.
+func RequireActor(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	actor, ok := ActorID(r.Context())
+	if !ok {
+		httpx.WriteError(w, http.StatusUnauthorized, httpx.MessageAuthRequired)
+		return 0, false
+	}
+	return actor, true
+}
+
 // Login handles POST /auth/login.
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
-	fields, ok := httpx.ReadObject(w, r)
+	input, ok := httpx.ReadInput(w, r, decodeLoginInput, validateLoginInput)
 	if !ok {
-		return
-	}
-
-	input, structural := decodeLoginInput(fields)
-	if structural.Any() {
-		_, semantic := validateLoginInput(input)
-		err := httpx.CombineValidation(structural, semantic)
-		httpx.WriteServiceError(w, "validate login", err)
 		return
 	}
 
@@ -40,16 +44,8 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 
 // Refresh handles POST /auth/refresh.
 func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
-	fields, ok := httpx.ReadObject(w, r)
+	input, ok := httpx.ReadInput(w, r, decodeRefreshTokenInput, validateRefreshTokenInput)
 	if !ok {
-		return
-	}
-
-	input, structural := decodeRefreshTokenInput(fields)
-	if structural.Any() {
-		_, semantic := validateRefreshTokenInput(input)
-		err := httpx.CombineValidation(structural, semantic)
-		httpx.WriteServiceError(w, "validate refresh token", err)
 		return
 	}
 
@@ -64,22 +60,13 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 // Logout handles POST /auth/logout. The access token must be valid so a user
 // can only revoke their own sessions.
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
-	actor, ok := ActorID(r.Context())
-	if !ok {
-		httpx.WriteError(w, http.StatusUnauthorized, httpx.MessageAuthRequired)
-		return
-	}
-
-	fields, ok := httpx.ReadObject(w, r)
+	actor, ok := RequireActor(w, r)
 	if !ok {
 		return
 	}
 
-	input, structural := decodeRefreshTokenInput(fields)
-	if structural.Any() {
-		_, semantic := validateRefreshTokenInput(input)
-		err := httpx.CombineValidation(structural, semantic)
-		httpx.WriteServiceError(w, "validate refresh token", err)
+	input, ok := httpx.ReadInput(w, r, decodeRefreshTokenInput, validateRefreshTokenInput)
+	if !ok {
 		return
 	}
 

@@ -179,9 +179,12 @@ Selalu jalankan `make check` (fmt, vet, test) sebelum selesai.
 - Path parameter dibaca lewat `httpx.ParseID` (di baliknya `chi.URLParam`).
 - Handler hanya menerjemahkan HTTP ↔ DTO ↔ service domainnya; tidak menulis
   query dan tidak menyimpan aturan bisnis.
-- Decode body di handler lewat `httpx.ReadObject`: tepat satu objek JSON,
+- Decode body di handler lewat `httpx.ReadInput`: tepat satu objek JSON,
   maksimal 1 MiB; body yang tidak terbaca dibalas `400`, isi yang tidak valid
-  (field asing, tipe salah) `422`.
+  (field asing, tipe salah) `422`. `ReadInput` menggabungkan error struktural
+  dan hasil `validate` domain, jadi handler tidak perlu menulis alur itu.
+- Handler tulis mengambil aktor lewat `auth.RequireActor(w, r)`; jangan menulis
+  ulang blok `401` sendiri.
 - Validasi isi (wajib, panjang, tanggal, enum, `q`) ada di `validation.go` paket
   domain dan mengembalikan `apperr.FieldErrors`; aturan pencarian memakai
   `search.Normalize`.
@@ -195,6 +198,9 @@ Selalu jalankan `make check` (fmt, vet, test) sebelum selesai.
 - Gunakan model dengan tag `bun` dan `json`.
 - Pakai `context` pada setiap query.
 - Tangani `sql.ErrNoRows` sebagai not-found di repository.
+- Untuk `UPDATE`/`DELETE`, bungkus hasilnya dengan
+  `database.AffectedOrNotFound(res, "update bidang 42")`; jangan menulis ulang
+  `RowsAffected` + `apperr.ErrNotFound` di setiap repository.
 - Aktifkan `PRAGMA foreign_keys = ON` di setiap koneksi.
 - Gunakan `PRAGMA journal_mode = WAL` dan `busy_timeout` untuk menghindari
   `database is locked`.
