@@ -70,10 +70,7 @@ func (r *BidangRepository) Create(ctx context.Context, bidang *model.Bidang) err
 		Returning("id").
 		Exec(ctx)
 	if err != nil {
-		if isUniqueViolation(err) {
-			return apperr.ErrConflict
-		}
-		return fmt.Errorf("create bidang: %w", err)
+		return fmt.Errorf("insert bidang: %w", err)
 	}
 	return nil
 }
@@ -87,9 +84,6 @@ func (r *BidangRepository) Update(ctx context.Context, bidang *model.Bidang) err
 		Where("deleted_at IS NULL").
 		Exec(ctx)
 	if err != nil {
-		if isUniqueViolation(err) {
-			return apperr.ErrConflict
-		}
 		return fmt.Errorf("update bidang %d: %w", bidang.ID, err)
 	}
 

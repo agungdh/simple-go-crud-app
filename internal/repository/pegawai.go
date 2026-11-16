@@ -77,10 +77,7 @@ func (r *PegawaiRepository) Create(ctx context.Context, pegawai *model.Pegawai) 
 		Returning("id").
 		Exec(ctx)
 	if err != nil {
-		if isUniqueViolation(err) || isForeignKeyViolation(err) {
-			return apperr.ErrConflict
-		}
-		return fmt.Errorf("create pegawai: %w", err)
+		return fmt.Errorf("insert pegawai: %w", err)
 	}
 	return nil
 }
@@ -94,9 +91,6 @@ func (r *PegawaiRepository) Update(ctx context.Context, pegawai *model.Pegawai) 
 		Where("deleted_at IS NULL").
 		Exec(ctx)
 	if err != nil {
-		if isUniqueViolation(err) || isForeignKeyViolation(err) {
-			return apperr.ErrConflict
-		}
 		return fmt.Errorf("update pegawai %d: %w", pegawai.ID, err)
 	}
 

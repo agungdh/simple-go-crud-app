@@ -10,7 +10,6 @@ import (
 // responses.
 var (
 	ErrNotFound = errors.New("not found")
-	ErrConflict = errors.New("conflict")
 )
 
 // FieldErrors collects validation messages keyed by JSON field name. The key
