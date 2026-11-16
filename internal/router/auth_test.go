@@ -12,9 +12,9 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 
 	"simple-go-crud-app/internal/auth"
-	"simple-go-crud-app/internal/dto"
-	"simple-go-crud-app/internal/model"
-	"simple-go-crud-app/internal/repository"
+	"simple-go-crud-app/internal/bidang"
+	"simple-go-crud-app/internal/shared/entity"
+	"simple-go-crud-app/internal/shared/httpx"
 )
 
 func loginBody(username, password string) string {
@@ -32,7 +32,7 @@ func TestAuthLogin(t *testing.T) {
 		rec := env.doAnon(http.MethodPost, "/auth/login", loginBody(testAdminUsername, testPassword))
 		requireStatus(t, rec, http.StatusOK)
 
-		body := decodeJSON[dto.TokenResponse](t, rec)
+		body := decodeJSON[auth.TokenResponse](t, rec)
 		if body.AccessToken == "" {
 			t.Error("access_token is empty")
 		}
@@ -48,7 +48,7 @@ func TestAuthLogin(t *testing.T) {
 		if body.RefreshExpiresIn != int64(testRefreshTTL.Seconds()) {
 			t.Errorf("refresh_expires_in = %d, want %d", body.RefreshExpiresIn, int64(testRefreshTTL.Seconds()))
 		}
-		if body.User.Username != testAdminUsername || body.User.Role != model.RoleAdmin {
+		if body.User.Username != testAdminUsername || body.User.Role != auth.RoleAdmin {
 			t.Errorf("user = %+v, want admin role and username %q", body.User, testAdminUsername)
 		}
 		if strings.Contains(rec.Body.String(), testPassword) {
@@ -59,7 +59,7 @@ func TestAuthLogin(t *testing.T) {
 	t.Run("wrong password", func(t *testing.T) {
 		rec := env.doAnon(http.MethodPost, "/auth/login", loginBody(testAdminUsername, "salah-sekali"))
 		requireStatus(t, rec, http.StatusUnauthorized)
-		if decodeJSON[dto.ErrorResponse](t, rec).Error == "" {
+		if decodeJSON[httpx.ErrorResponse](t, rec).Error == "" {
 			t.Error("401 response has an empty error message")
 		}
 	})
@@ -111,7 +111,7 @@ func TestAuthRefresh(t *testing.T) {
 	rec := env.doAnon(http.MethodPost, "/auth/refresh", refreshBody(first.RefreshToken))
 	requireStatus(t, rec, http.StatusOK)
 
-	second := decodeJSON[dto.TokenResponse](t, rec)
+	second := decodeJSON[auth.TokenResponse](t, rec)
 	if second.AccessToken == "" || second.RefreshToken == "" {
 		t.Fatal("refresh response has an empty token")
 	}
@@ -147,7 +147,7 @@ func TestAuthRefreshExpiredToken(t *testing.T) {
 	hash := auth.HashRefreshToken(tokens.RefreshToken)
 	past := time.Now().UTC().Add(-time.Hour).Format(time.RFC3339)
 	if _, err := env.db.NewUpdate().
-		Model((*model.RefreshToken)(nil)).
+		Model((*auth.RefreshToken)(nil)).
 		Set("expires_at = ?", past).
 		Where("token_hash = ?", hash).
 		Exec(context.Background()); err != nil {
@@ -237,7 +237,7 @@ func TestAuthAccessControl(t *testing.T) {
 
 		rec = env.do(http.MethodGet, "/bidang", "")
 		requireStatus(t, rec, http.StatusOK)
-		list := decodeJSON[dto.BidangListResponse](t, rec)
+		list := decodeJSON[bidang.ListEnvelope](t, rec)
 		if len(list.Data) != 1 {
 			t.Fatalf("bidang count = %d, want 1", len(list.Data))
 		}
@@ -254,7 +254,7 @@ func TestAuthAccessControl(t *testing.T) {
 func TestAuthExpiredAccessToken(t *testing.T) {
 	env := newTestEnv(t)
 
-	users := repository.NewUserRepository(env.db)
+	users := auth.NewUserRepository(env.db)
 	admin, err := users.GetByID(context.Background(), env.adminID)
 	if err != nil {
 		t.Fatalf("load admin: %v", err)
@@ -286,8 +286,8 @@ func TestAuthSoftDeletedUser(t *testing.T) {
 	tokens := env.login(testAdminUsername, testPassword)
 
 	if _, err := env.db.NewUpdate().
-		Model((*model.User)(nil)).
-		Set("deleted_at = ?", model.NowMillis()).
+		Model((*auth.User)(nil)).
+		Set("deleted_at = ?", entity.NowMillis()).
 		Where("id = ?", env.adminID).
 		Exec(context.Background()); err != nil {
 		t.Fatalf("soft delete user: %v", err)

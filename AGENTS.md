@@ -7,18 +7,18 @@ Panduan untuk agent yang bekerja di repo ini.
 | Topik | Intinya |
 | --- | --- |
 | Stack | Go + chi + Bun + SQLite (`modernc.org/sqlite`) + goose. Jangan ganti. |
-| Status | Kontrak, DTO, layer DB, service, handler, router, dan autentikasi sudah ada; server HTTP aktif di `:8080` |
+| Status | Kontrak, domain `bidang`/`pegawai`/`auth`, router, dan autentikasi sudah ada; server HTTP aktif di `:8080` |
 | Auth | Access token JWT + refresh token buram; role `admin` (baca/tulis) dan `user` (baca saja); semua endpoint data wajib login |
 | Cek cepat | `make help` (daftar target), `make check` (wajib sebelum selesai), `make api-validate` (Scalar, butuh Node.js) untuk kontrak |
 | DB | `persistence/db/app.db`, WAL, `synchronous=NORMAL`, `busy_timeout`, `foreign_keys=ON`, pool kecil |
 | Migration | `make migrate-create NAME=nama` → isi Up/Down → `make migrate-up` |
-| Layer | `main.go` wiring; `internal/` handler → service → repository → model, DTO di `internal/dto`; tidak campur |
-| Kontrak | `api/openapi.yaml` ditulis **dulu**, baru implementasi; tanpa generator/dependency OpenAPI di Go; DTO tangan di `internal/dto`; `make api-validate` (Scalar) |
+| Domain | `main.go` wiring + `internal/router`; tiap domain (`auth`, `bidang`, `pegawai`) satu paket berisi model, repository, service, validation, DTO, dan handler; paket shared ada di `internal/shared/` (`entity`, `httpx`, `search`, `apperr`, `database`, `testutil`) |
+| Kontrak | `api/openapi.yaml` ditulis **dulu**, baru implementasi; tanpa generator/dependency OpenAPI di Go; DTO tangan di `dto.go` paket domain; `make api-validate` (Scalar) |
 | ID | `INTEGER PRIMARY KEY AUTOINCREMENT`, di Go `int64` |
 | Waktu | Audit `*_at` = epoch **ms UTC**; tanggal/waktu bisnis = `TEXT` ISO-8601 (`YYYY-MM-DD`) |
-| Audit | Wajib `model.Base`; isi via `MarkCreated/MarkUpdated/MarkDeleted`; jangan expose ke API |
-| Soft delete | `model.Active(q)` + `UPDATE deleted_at/deleted_by`; unik = partial index `WHERE deleted_at IS NULL` |
-| Query | **Jangan `SELECT *`**; pakai `Column(model.PublicColumns(...)...)` |
+| Audit | Wajib `entity.Base`; isi via `MarkCreated/MarkUpdated/MarkDeleted`; jangan expose ke API |
+| Soft delete | `entity.Active(q)` + `UPDATE deleted_at/deleted_by`; unik = partial index `WHERE deleted_at IS NULL` |
+| Query | **Jangan `SELECT *`**; pakai `Column(entity.PublicColumns(...)...)` |
 | Cari | `search_text` (VIRTUAL) + FTS5 trigram `<tabel>_fts`; `?q=` wajib ≥3 karakter (kurang → `422`) |
 | FK | `ON UPDATE RESTRICT ON DELETE RESTRICT`, tipe `BIGINT`, beri index |
 | Error | Hanya `400`, `401`, `403`, `404`, `422`, `500`; `400`/`401`/`403`/`404`/`500` → `{"error": "..."}`, `422` → `{"error": {"validations": {"field": ["..."]}}}`; validasi termasuk unik/FK → `422`, error tak terduga → `500` |
@@ -31,11 +31,11 @@ Project **Go** sederhana. Gunakan stack yang sudah ditentukan; jangan ganti
 tanpa alasan kuat.
 
 Urutan kerja wajib **spec-first**: tulis atau ubah `api/openapi.yaml` dulu,
-review sampai bentuknya stabil, baru tulis DTO tangan di `internal/dto`, lalu
-implementasi (`internal/model`, `internal/repository`, `internal/service`,
-`internal/handler`, `internal/router`). Jangan menulis implementasi untuk
-endpoint yang belum ada di kontrak, dan jangan mengubah kontrak supaya cocok
-dengan kode yang sudah terlanjur dibuat.
+review sampai bentuknya stabil, baru tulis DTO tangan di `dto.go` paket domain,
+lalu implementasi di paket domain yang sama (`repository.go`, `service.go`,
+`validation.go`, `handler.go`) dan daftarkan route di `internal/router`. Jangan
+menulis implementasi untuk endpoint yang belum ada di kontrak, dan jangan
+mengubah kontrak supaya cocok dengan kode yang sudah terlanjur dibuat.
 
 Kontrak **ditulis tangan**. Tidak ada generator OpenAPI di repo ini: jangan
 menambah `oapi-codegen`, `openapi-generator`, `swag`, `huma`, `go:generate`
@@ -125,18 +125,34 @@ Selalu jalankan `make check` (fmt, vet, test) sebelum selesai.
 
 - `main.go` — entrypoint; buka database, jalankan migration, dan nyalakan
   server HTTP (`ADDR`, default `:8080`) dengan graceful shutdown.
-- `internal/` — kode aplikasi: `database`, `auth`, `model`, `repository`,
-  `service`, `handler`, `router`, `dto`, `apperr`, dan `testutil` (helper test).
+- `internal/` — kode aplikasi, dipisah antara **paket bisnis per domain** dan
+  **paket shared**:
+  - `auth/` — domain autentikasi: user, refresh token, JWT, password, middleware,
+    service login/refresh/logout, handler, dan DTO.
+  - `bidang/` — domain bidang: model, repository, service, validation, DTO, handler.
+  - `pegawai/` — domain pegawai: model, repository, service, validation, date,
+    DTO, handler.
+  - `router/` — komposisi route, CORS, recoverer; satu-satunya tempat yang
+    merangkai semua domain.
+  - `shared/` — kode yang dipakai lintas domain:
+    - `entity/` — `Base` (PK + kolom audit), `Active`, `PublicColumns`, `NowMillis`.
+    - `httpx/` — envelope JSON, decode body, mapping error → status, parse `{id}`.
+    - `search/` — `Normalize(q)` dan `Phrase(q)` untuk FTS5 trigram.
+    - `apperr/` — sentinel error dan `FieldErrors`.
+    - `database/` — koneksi SQLite, pragma, dan runner migration.
+    - `testutil/` — helper test.
 - `api/` — kontrak OpenAPI (`openapi.yaml`); sumber kebenaran bentuk API.
   `api/scalar.config.json` hanya mengatur UI Scalar (skema auth global dan
   persistensi token), bukan bagian dari kontrak.
-- `internal/dto/` — struct request/response yang ditulis tangan setelah kontrak
-  stabil; tidak ada kode generated dan tidak ada generator.
+- DTO ditulis tangan di `dto.go` paket domain setelah kontrak stabil; tidak ada
+  kode generated dan tidak ada generator.
 - `migrations/` — file migration goose.
 - `persistence/db/` — database runtime (tidak di-commit); hanya `.gitkeep`.
 - `Makefile` — target perintah harian; sumber kebenaran daftar perintah.
 - `compose.yml` — sqlite-web untuk inspeksi database.
-- Pisahkan layer: handler tidak menulis query, repository tidak menulis response
+- Tanggung jawab tetap dipisah per file walau satu paket: `repository.go` hanya
+  menulis query, `service.go` hanya aturan bisnis, `handler.go` hanya HTTP ↔
+  DTO ↔ service. Handler tidak menulis query; repository tidak menulis response
   HTTP.
 
 ## Konvensi
@@ -145,6 +161,10 @@ Selalu jalankan `make check` (fmt, vet, test) sebelum selesai.
 
 - Ikuti pola package yang sudah ada; jangan bikin abstraksi baru kalau belum
   perlu.
+- Jangan membuat paket layer baru (`model`, `repository`, `service`, `handler`,
+  `dto`) di root `internal/`. Kode baru masuk ke paket domainnya; helper yang
+  dipakai lintas domain masuk ke `internal/shared/` (`entity`, `httpx`, `search`,
+  `apperr`).
 - Gunakan `context.Context` untuk operasi DB dan request.
 - Bungkus error dengan `fmt.Errorf("...: %w", err)`.
 - Jangan menelan error. Kembalikan atau log dengan konteks.
@@ -153,25 +173,28 @@ Selalu jalankan `make check` (fmt, vet, test) sebelum selesai.
 
 ### HTTP & router (chi)
 
-- Daftarkan route di satu tempat (router), kelompokkan per resource.
+- Daftarkan route di satu tempat (`internal/router`), kelompokkan per resource.
 - Gunakan middleware chi untuk logging, recovery, dan hal lintas-cutting.
-- Path parameter dibaca dengan `chi.URLParam`.
-- Handler hanya menerjemahkan HTTP ↔ DTO ↔ service; tidak menulis query dan
-  tidak menyimpan aturan bisnis.
-- Decode body di handler: tepat satu objek JSON, maksimal 1 MiB; body yang tidak
-  terbaca dibalas `400`, isi yang tidak valid (field asing, tipe salah) `422`.
-- Validasi isi (wajib, panjang, tanggal, enum, `q`) ada di `internal/service`
-  dan mengembalikan `apperr.FieldErrors`.
+  Middleware autentikasi ada di `internal/auth` (`RequireAuth`, `RequireAdmin`).
+- Path parameter dibaca lewat `httpx.ParseID` (di baliknya `chi.URLParam`).
+- Handler hanya menerjemahkan HTTP ↔ DTO ↔ service domainnya; tidak menulis
+  query dan tidak menyimpan aturan bisnis.
+- Decode body di handler lewat `httpx.ReadObject`: tepat satu objek JSON,
+  maksimal 1 MiB; body yang tidak terbaca dibalas `400`, isi yang tidak valid
+  (field asing, tipe salah) `422`.
+- Validasi isi (wajib, panjang, tanggal, enum, `q`) ada di `validation.go` paket
+  domain dan mengembalikan `apperr.FieldErrors`; aturan pencarian memakai
+  `search.Normalize`.
 - CORS dibatasi ke origin eksplisit dari `CORS_ORIGINS` (default Scalar docs
   di `:8082`); preflight `OPTIONS` dijawab `204`.
 
 ### Database (Bun + SQLite3)
 
 - Database hanya **SQLite3**. Jangan menambah database lain.
-- Semua query Bun berada di layer repository.
+- Semua query Bun berada di `repository.go` paket domain.
 - Gunakan model dengan tag `bun` dan `json`.
 - Pakai `context` pada setiap query.
-- Tangani `sql.ErrNoRows` sebagai not-found di layer repository.
+- Tangani `sql.ErrNoRows` sebagai not-found di repository.
 - Aktifkan `PRAGMA foreign_keys = ON` di setiap koneksi.
 - Gunakan `PRAGMA journal_mode = WAL` dan `busy_timeout` untuk menghindari
   `database is locked`.
@@ -196,7 +219,7 @@ Selalu jalankan `make check` (fmt, vet, test) sebelum selesai.
 
 - **Jangan `SELECT *`.** Selalu pilih kolom eksplisit dengan `.Column(...)`.
 - Default: semua kolom publishable (semua kecuali audit) lewat
-  `model.PublicColumns(db, (*Entity)(nil))`.
+  `entity.PublicColumns(db, (*Entity)(nil))`.
 - Pilih hanya kolom yang benar-benar dipakai response; jangan ikutkan kolom
   audit.
 - Untuk JOIN atau query tabel langsung, tulis kolom eksplisit dengan prefix
@@ -207,8 +230,8 @@ Selalu jalankan `make check` (fmt, vet, test) sebelum selesai.
 ```go
 q := db.NewSelect().
     Model(&items).
-    Column(model.PublicColumns(db, (*Item)(nil))...)
-q = model.Active(q)
+    Column(entity.PublicColumns(db, (*Item)(nil))...)
+q = entity.Active(q)
 ```
 
 #### Primary key
@@ -240,13 +263,13 @@ Setiap tabel **wajib** punya kolom audit berikut:
   response JSON maupun diterima dari request body. Pakai `json:"-"` pada field
   audit di model, atau map ke DTO response yang hanya berisi field publik.
 - Kolom audit tetap dipakai internal (filter soft delete, pengisian otomatis).
-- Semua entity **bisnis wajib embed `model.Base`** (`internal/model/base.go`);
+- Semua entity **bisnis wajib embed `entity.Base`** (`internal/shared/entity/base.go`);
   jangan mendeklarasikan ulang `id` atau kolom audit. Tabel teknis tanpa relasi
   bisnis (mis. `refresh_token`) dikecualikan: cukup `id`, kolom teknis, dan
   `created_at`; tidak perlu soft delete/audit lengkap.
 - Isi audit lewat `MarkCreated(actorID)`, `MarkUpdated(actorID)`, dan
   `MarkDeleted(actorID)`. Jangan mengisi manual.
-- Filter baca wajib memakai `model.Active(q)`; untuk query JOIN, filter juga
+- Filter baca wajib memakai `entity.Active(q)`; untuk query JOIN, filter juga
   tabel yang di-join (`p.deleted_at IS NULL`, `b.deleted_at IS NULL`, dst.).
 - Jangan memakai tag `bun:",soft_delete"` bawaan Bun: implementasinya menyimpan
   `UnixNano`, bukan epoch milliseconds.
@@ -370,8 +393,8 @@ CREATE VIRTUAL TABLE items_fts USING fts5(
 
 ### API
 
-Layer HTTP sudah ada; kontrak dan DTO menjadi acuannya (lihat subbagian
-berikut). Aturan di bawah ini dipegang handler.
+Handler HTTP tiap domain sudah ada; kontrak dan DTO menjadi acuannya (lihat
+subbagian berikut). Aturan di bawah ini dipegang handler.
 
 - Response `GET` sukses: `{"data": ...}`.
 - `POST` sukses `201` tanpa body, `PUT` sukses `200` tanpa body; data yang
@@ -447,11 +470,11 @@ Alur wajib untuk setiap perubahan API:
 1. Tulis atau ubah `api/openapi.yaml`: path, request, response, status, dan
    aturan validasi.
 2. Review kontrak sampai bentuknya disetujui; jangan menulis kode dulu.
-3. Tulis atau sesuaikan DTO tangan di `internal/dto`.
+3. Tulis atau sesuaikan DTO tangan di `dto.go` paket domain.
 4. Jalankan `make api-validate` untuk memastikan kontrak valid (Scalar, butuh
    Node.js).
-5. Implementasi layer di baliknya (`repository`, `service`, `handler`,
-   `router`).
+5. Implementasi di paket domain yang sama (`repository.go`, `service.go`,
+   `validation.go`, `handler.go`) dan daftarkan route di `internal/router`.
 
 Kalau implementasi ternyata butuh bentuk berbeda, perbaiki kontrak dulu, baru
 kode. Jangan mengubah kontrak hanya agar cocok dengan kode yang sudah ada.
@@ -467,12 +490,13 @@ kode. Jangan mengubah kontrak hanya agar cocok dengan kode yang sudah ada.
 - Tidak ada generator OpenAPI, dependency OpenAPI di Go, dan tidak ada codegen.
   Jangan menambah `oapi-codegen`, `openapi-generator`, `swag`, `huma`,
   `kin-openapi`, `go:generate` untuk kontrak, atau file `*.gen.go`. DTO ditulis
-  tangan di `internal/dto` dan wajib cocok dengan schema di kontrak;
+  tangan di `dto.go` paket domain dan wajib cocok dengan schema di kontrak;
   kecocokannya dicek manual saat review, bukan lewat test/library Go.
 - Nama field JSON di DTO harus sama persis dengan kontrak. Untuk tipe yang
   berbeda antara request dan response (mis. `jenis_kelamin`), buat dua tipe
   terpisah, jangan dipaksa satu.
-- Handler nanti memakai tipe `internal/dto`, bukan struct anonim atau `map`.
+- Handler memakai tipe DTO paket domainnya (`bidang.Input`, `pegawai.Response`,
+  dst.), bukan struct anonim atau `map`.
 - `make api-validate` dijalankan sebelum merge; target ini butuh Node.js dan
   bukan bagian dari `make check`.
 - `make docs` untuk melihat kontrak sebagai dokumentasi di
@@ -495,6 +519,8 @@ kode. Jangan mengubah kontrak hanya agar cocok dengan kode yang sudah ada.
 - Test memakai database sementara, jangan menyentuh database runtime.
 - Setiap endpoint baru punya test happy path + kasus error.
 - Test tidak boleh bergantung pada state global atau urutan eksekusi.
+- Test unit diletakkan di paket domain terkait (mis. `pegawai/date_test.go`);
+  test perilaku lintas domain lewat router (`internal/router/*_test.go`).
 - Tidak ada test Go khusus kontrak dan tidak ada dependency OpenAPI di Go.
   Validasi kontrak lewat `make api-validate` (Scalar CLI, butuh Node.js).
 - Kecocokan DTO dengan kontrak tidak dicek otomatis. Review manual saat

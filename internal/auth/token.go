@@ -5,14 +5,13 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"strconv"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 
-	"simple-go-crud-app/internal/model"
+	"simple-go-crud-app/internal/shared/apperr"
 )
 
 const (
@@ -23,10 +22,6 @@ const (
 	// refreshTokenBytes is the entropy of an opaque refresh token.
 	refreshTokenBytes = 32
 )
-
-// ErrInvalidToken is returned for malformed, expired, or otherwise unusable
-// access tokens.
-var ErrInvalidToken = errors.New("invalid token")
 
 // Claims is the access-token payload. UserID is derived from the registered
 // subject claim after parsing, so it is not serialized separately.
@@ -76,7 +71,7 @@ func (m *Manager) RefreshTTL() time.Duration {
 }
 
 // IssueAccess returns a signed HS256 JWT for user.
-func (m *Manager) IssueAccess(user *model.User) (string, error) {
+func (m *Manager) IssueAccess(user *User) (string, error) {
 	if user == nil {
 		return "", fmt.Errorf("issue access token: nil user")
 	}
@@ -102,8 +97,8 @@ func (m *Manager) IssueAccess(user *model.User) (string, error) {
 }
 
 // ParseAccess validates an access token and returns its claims. Every failure
-// is reported as ErrInvalidToken so callers can map it to 401 without leaking
-// why the token was rejected.
+// is reported as apperr.ErrInvalidToken so callers can map it to 401 without
+// leaking why the token was rejected.
 func (m *Manager) ParseAccess(raw string) (*Claims, error) {
 	parser := jwt.NewParser(
 		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
@@ -114,17 +109,17 @@ func (m *Manager) ParseAccess(raw string) (*Claims, error) {
 	claims := new(Claims)
 	token, err := parser.ParseWithClaims(raw, claims, func(token *jwt.Token) (any, error) {
 		if token.Method.Alg() != jwt.SigningMethodHS256.Alg() {
-			return nil, ErrInvalidToken
+			return nil, apperr.ErrInvalidToken
 		}
 		return m.secret, nil
 	})
 	if err != nil || !token.Valid {
-		return nil, ErrInvalidToken
+		return nil, apperr.ErrInvalidToken
 	}
 
 	userID, err := strconv.ParseInt(claims.Subject, 10, 64)
 	if err != nil || userID < 1 {
-		return nil, ErrInvalidToken
+		return nil, apperr.ErrInvalidToken
 	}
 	claims.UserID = userID
 	return claims, nil

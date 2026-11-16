@@ -13,10 +13,9 @@ import (
 	"syscall"
 	"time"
 
-	"simple-go-crud-app/internal/database"
-	"simple-go-crud-app/internal/repository"
+	"simple-go-crud-app/internal/auth"
 	"simple-go-crud-app/internal/router"
-	"simple-go-crud-app/internal/service"
+	"simple-go-crud-app/internal/shared/database"
 )
 
 //go:embed migrations/*.sql
@@ -63,7 +62,7 @@ func run() error {
 	}
 
 	adminUsername := envOr("ADMIN_USERNAME", "admin")
-	seeded, err := service.EnsureAdmin(context.Background(), repository.NewUserRepository(db), service.AdminSeed{
+	seeded, err := auth.EnsureAdmin(context.Background(), auth.NewUserRepository(db), auth.AdminSeed{
 		Username: adminUsername,
 		Password: os.Getenv("ADMIN_PASSWORD"),
 		Name:     envOr("ADMIN_NAME", "Administrator"),

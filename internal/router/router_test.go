@@ -13,11 +13,11 @@ import (
 	"github.com/uptrace/bun"
 
 	"simple-go-crud-app/internal/auth"
-	"simple-go-crud-app/internal/dto"
-	"simple-go-crud-app/internal/model"
-	"simple-go-crud-app/internal/repository"
+	"simple-go-crud-app/internal/bidang"
+	"simple-go-crud-app/internal/pegawai"
 	"simple-go-crud-app/internal/router"
-	"simple-go-crud-app/internal/testutil"
+	"simple-go-crud-app/internal/shared/httpx"
+	"simple-go-crud-app/internal/shared/testutil"
 )
 
 type testEnv struct {
@@ -55,8 +55,8 @@ func newTestEnv(t *testing.T) *testEnv {
 		t.Fatalf("build router: %v", err)
 	}
 
-	admin := seedUser(t, db, testAdminUsername, "Administrator", model.RoleAdmin)
-	user := seedUser(t, db, testUserName, "Budi Santoso", model.RoleUser)
+	admin := seedUser(t, db, testAdminUsername, "Administrator", auth.RoleAdmin)
+	user := seedUser(t, db, testUserName, "Budi Santoso", auth.RoleUser)
 
 	tokens, err := auth.NewManager(testJWTSecret, testAccessTTL, testRefreshTTL)
 	if err != nil {
@@ -85,17 +85,17 @@ func newTestEnv(t *testing.T) *testEnv {
 // seedUser inserts an account with the shared test password hash. Hashing once
 // keeps the test suite fast while still exercising bcrypt verification in the
 // login tests.
-func seedUser(t *testing.T, db *bun.DB, username, name, role string) *model.User {
+func seedUser(t *testing.T, db *bun.DB, username, name, role string) *auth.User {
 	t.Helper()
 
-	user := &model.User{
+	user := &auth.User{
 		Username: username,
 		Password: testPasswordHash,
 		Name:     name,
 		Role:     role,
 	}
 	user.MarkCreated(0)
-	if err := repository.NewUserRepository(db).Create(context.Background(), user); err != nil {
+	if err := auth.NewUserRepository(db).Create(context.Background(), user); err != nil {
 		t.Fatalf("create test user %q: %v", username, err)
 	}
 	return user
@@ -135,14 +135,14 @@ func (e *testEnv) doAs(token, method, path, body string, headers map[string]stri
 }
 
 // login exercises the real login endpoint and returns the token pair.
-func (e *testEnv) login(username, password string) dto.TokenResponse {
+func (e *testEnv) login(username, password string) auth.TokenResponse {
 	e.t.Helper()
 
 	rec := e.doAnon(http.MethodPost, "/auth/login", fmt.Sprintf(
 		`{"username":%q,"password":%q}`, username, password,
 	))
 	requireStatus(e.t, rec, http.StatusOK)
-	return decodeJSON[dto.TokenResponse](e.t, rec)
+	return decodeJSON[auth.TokenResponse](e.t, rec)
 }
 
 func (e *testEnv) createBidang(name string) int64 {
@@ -154,7 +154,7 @@ func (e *testEnv) createBidang(name string) int64 {
 	rec = e.do(http.MethodGet, "/bidang", "")
 	requireStatus(e.t, rec, http.StatusOK)
 
-	list := decodeJSON[dto.BidangListResponse](e.t, rec)
+	list := decodeJSON[bidang.ListEnvelope](e.t, rec)
 	for _, item := range list.Data {
 		if item.Bidang == name {
 			return item.ID
@@ -191,7 +191,7 @@ func decodeJSON[T any](t *testing.T, rec *httptest.ResponseRecorder) T {
 func decodeValidations(t *testing.T, rec *httptest.ResponseRecorder) map[string][]string {
 	t.Helper()
 
-	body := decodeJSON[dto.ValidationErrorResponse](t, rec)
+	body := decodeJSON[httpx.ValidationErrorResponse](t, rec)
 	return body.Error.Validations
 }
 
@@ -301,7 +301,7 @@ func TestBidangCRUD(t *testing.T) {
 
 	rec = env.do(http.MethodGet, "/bidang", "")
 	requireStatus(t, rec, http.StatusOK)
-	list := decodeJSON[dto.BidangListResponse](t, rec)
+	list := decodeJSON[bidang.ListEnvelope](t, rec)
 	if len(list.Data) != 1 {
 		t.Fatalf("list length = %d, want 1", len(list.Data))
 	}
@@ -312,7 +312,7 @@ func TestBidangCRUD(t *testing.T) {
 
 	rec = env.do(http.MethodGet, fmt.Sprintf("/bidang/%d", id), "")
 	requireStatus(t, rec, http.StatusOK)
-	detail := decodeJSON[dto.BidangResponse](t, rec)
+	detail := decodeJSON[bidang.Envelope](t, rec)
 	if detail.Data.ID != id || detail.Data.Bidang != "Keuangan" {
 		t.Errorf("detail = %+v, want id %d and bidang Keuangan", detail.Data, id)
 	}
@@ -323,14 +323,14 @@ func TestBidangCRUD(t *testing.T) {
 
 	rec = env.do(http.MethodGet, fmt.Sprintf("/bidang/%d", id), "")
 	requireStatus(t, rec, http.StatusOK)
-	detail = decodeJSON[dto.BidangResponse](t, rec)
+	detail = decodeJSON[bidang.Envelope](t, rec)
 	if detail.Data.Bidang != "Keuangan Pusat" {
 		t.Errorf("bidang after update = %q, want %q", detail.Data.Bidang, "Keuangan Pusat")
 	}
 
 	rec = env.do(http.MethodGet, "/bidang?q=Keuangan", "")
 	requireStatus(t, rec, http.StatusOK)
-	if got := len(decodeJSON[dto.BidangListResponse](t, rec).Data); got != 1 {
+	if got := len(decodeJSON[bidang.ListEnvelope](t, rec).Data); got != 1 {
 		t.Errorf("search hits = %d, want 1", got)
 	}
 
@@ -346,7 +346,7 @@ func TestBidangCRUD(t *testing.T) {
 
 	rec = env.do(http.MethodGet, fmt.Sprintf("/bidang/%d", id), "")
 	requireStatus(t, rec, http.StatusNotFound)
-	notFound := decodeJSON[dto.ErrorResponse](t, rec)
+	notFound := decodeJSON[httpx.ErrorResponse](t, rec)
 	if notFound.Error == "" {
 		t.Error("404 response has an empty error message")
 	}
@@ -381,7 +381,7 @@ func TestBidangBadRequestBody(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			rec := env.do(http.MethodPost, "/bidang", test.body)
 			requireStatus(t, rec, http.StatusBadRequest)
-			body := decodeJSON[dto.ErrorResponse](t, rec)
+			body := decodeJSON[httpx.ErrorResponse](t, rec)
 			if body.Error == "" {
 				t.Error("400 response has an empty error message")
 			}
@@ -514,7 +514,7 @@ func TestPegawaiCRUD(t *testing.T) {
 
 	rec = env.do(http.MethodGet, "/pegawai", "")
 	requireStatus(t, rec, http.StatusOK)
-	list := decodeJSON[dto.PegawaiListResponse](t, rec)
+	list := decodeJSON[pegawai.ListEnvelope](t, rec)
 	if len(list.Data) != 1 {
 		t.Fatalf("list length = %d, want 1", len(list.Data))
 	}
@@ -522,8 +522,8 @@ func TestPegawaiCRUD(t *testing.T) {
 	if item.TanggalLahir != "17-08-1990" {
 		t.Errorf("tanggal_lahir = %q, want %q", item.TanggalLahir, "17-08-1990")
 	}
-	if item.JenisKelamin != dto.Pria {
-		t.Errorf("jenis_kelamin = %q, want %q", item.JenisKelamin, dto.Pria)
+	if item.JenisKelamin != pegawai.Pria {
+		t.Errorf("jenis_kelamin = %q, want %q", item.JenisKelamin, pegawai.Pria)
 	}
 	if item.BidangID != bidangID || item.Nama != "Budi Santoso" || item.NIP != "1987654321" {
 		t.Errorf("unexpected pegawai: %+v", item)
@@ -532,7 +532,7 @@ func TestPegawaiCRUD(t *testing.T) {
 
 	rec = env.do(http.MethodGet, fmt.Sprintf("/pegawai/%d", id), "")
 	requireStatus(t, rec, http.StatusOK)
-	detail := decodeJSON[dto.PegawaiResponse](t, rec)
+	detail := decodeJSON[pegawai.Envelope](t, rec)
 	if detail.Data.ID != id {
 		t.Errorf("detail id = %d, want %d", detail.Data.ID, id)
 	}
@@ -540,7 +540,7 @@ func TestPegawaiCRUD(t *testing.T) {
 	for _, q := range []string{"Budi", "1987654321", "17-08-1990", "pria"} {
 		rec = env.do(http.MethodGet, "/pegawai?q="+q, "")
 		requireStatus(t, rec, http.StatusOK)
-		hits := decodeJSON[dto.PegawaiListResponse](t, rec)
+		hits := decodeJSON[pegawai.ListEnvelope](t, rec)
 		if len(hits.Data) != 1 {
 			t.Errorf("search %q hits = %d, want 1", q, len(hits.Data))
 		}
@@ -554,12 +554,12 @@ func TestPegawaiCRUD(t *testing.T) {
 
 	rec = env.do(http.MethodGet, fmt.Sprintf("/pegawai/%d", id), "")
 	requireStatus(t, rec, http.StatusOK)
-	detail = decodeJSON[dto.PegawaiResponse](t, rec)
+	detail = decodeJSON[pegawai.Envelope](t, rec)
 	if detail.Data.TanggalLahir != "17-08-1990" {
 		t.Errorf("tanggal_lahir after update = %q, want DD-MM-YYYY", detail.Data.TanggalLahir)
 	}
-	if detail.Data.JenisKelamin != dto.Wanita {
-		t.Errorf("jenis_kelamin after update = %q, want %q", detail.Data.JenisKelamin, dto.Wanita)
+	if detail.Data.JenisKelamin != pegawai.Wanita {
+		t.Errorf("jenis_kelamin after update = %q, want %q", detail.Data.JenisKelamin, pegawai.Wanita)
 	}
 	if detail.Data.Alamat != "Jl. Merdeka 2" {
 		t.Errorf("alamat after update = %q", detail.Data.Alamat)
@@ -678,7 +678,7 @@ func (e *testEnv) createPegawai(body string) int64 {
 	rec = e.do(http.MethodGet, "/pegawai", "")
 	requireStatus(e.t, rec, http.StatusOK)
 
-	list := decodeJSON[dto.PegawaiListResponse](e.t, rec)
+	list := decodeJSON[pegawai.ListEnvelope](e.t, rec)
 	if len(list.Data) == 0 {
 		e.t.Fatal("no pegawai found after create")
 	}

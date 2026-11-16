@@ -13,9 +13,8 @@ import (
 	"github.com/uptrace/bun"
 
 	"simple-go-crud-app/internal/auth"
-	"simple-go-crud-app/internal/handler"
-	"simple-go-crud-app/internal/repository"
-	"simple-go-crud-app/internal/service"
+	"simple-go-crud-app/internal/bidang"
+	"simple-go-crud-app/internal/pegawai"
 )
 
 // Config holds the settings required to build the HTTP router.
@@ -26,24 +25,24 @@ type Config struct {
 	RefreshTokenTTL time.Duration
 }
 
-// New wires repositories, services, and handlers into the HTTP router. Routes
-// mirror api/openapi.yaml exactly, without trailing slashes. allowedOrigins is
-// the exact list of browser origins permitted by CORS.
+// New wires the domain packages into the HTTP router. Routes mirror
+// api/openapi.yaml exactly, without trailing slashes. allowedOrigins is the
+// exact list of browser origins permitted by CORS.
 func New(db *bun.DB, cfg Config) (http.Handler, error) {
 	tokens, err := auth.NewManager(cfg.JWTSecret, cfg.AccessTokenTTL, cfg.RefreshTokenTTL)
 	if err != nil {
 		return nil, fmt.Errorf("configure auth: %w", err)
 	}
 
-	bidangRepo := repository.NewBidangRepository(db)
-	pegawaiRepo := repository.NewPegawaiRepository(db)
-	userRepo := repository.NewUserRepository(db)
-	refreshRepo := repository.NewRefreshTokenRepository(db)
+	bidangRepo := bidang.NewRepository(db)
+	pegawaiRepo := pegawai.NewRepository(db)
+	userRepo := auth.NewUserRepository(db)
+	refreshRepo := auth.NewRefreshTokenRepository(db)
 
-	bidangHandler := handler.NewBidang(service.NewBidang(bidangRepo))
-	pegawaiHandler := handler.NewPegawai(service.NewPegawai(pegawaiRepo, bidangRepo))
-	authService := service.NewAuth(userRepo, refreshRepo, tokens)
-	authHandler := handler.NewAuth(authService)
+	bidangHandler := bidang.NewHandler(bidang.NewService(bidangRepo))
+	pegawaiHandler := pegawai.NewHandler(pegawai.NewService(pegawaiRepo, bidangRepo))
+	authService := auth.NewService(userRepo, refreshRepo, tokens)
+	authHandler := auth.NewHandler(authService)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -58,14 +57,14 @@ func New(db *bun.DB, cfg Config) (http.Handler, error) {
 		r.Post("/login", authHandler.Login)
 		r.Post("/refresh", authHandler.Refresh)
 		r.Group(func(r chi.Router) {
-			r.Use(handler.RequireAuth(authService))
+			r.Use(auth.RequireAuth(authService))
 			r.Post("/logout", authHandler.Logout)
 		})
 	})
 
 	// Authenticated reads are available to both roles.
 	r.Group(func(r chi.Router) {
-		r.Use(handler.RequireAuth(authService))
+		r.Use(auth.RequireAuth(authService))
 
 		r.Get("/bidang", bidangHandler.List)
 		r.Get("/bidang/{id}", bidangHandler.Get)
@@ -74,7 +73,7 @@ func New(db *bun.DB, cfg Config) (http.Handler, error) {
 
 		// Writes require the admin role.
 		r.Group(func(r chi.Router) {
-			r.Use(handler.RequireAdmin)
+			r.Use(auth.RequireAdmin)
 
 			r.Post("/bidang", bidangHandler.Create)
 			r.Put("/bidang/{id}", bidangHandler.Update)
