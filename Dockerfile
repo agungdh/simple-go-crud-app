@@ -15,7 +15,18 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 go build \
+
+# Keep the binaries at the widest useful baseline instead of whatever the
+# native runner supports: x86-64-v2 for amd64 and ARMv8.0-A for arm64.
+ARG TARGETARCH
+ARG GOAMD64=v2
+ARG GOARM64=v8.0
+
+RUN case "${TARGETARCH}" in \
+        amd64) export GOAMD64 ;; \
+        arm64) export GOARM64 ;; \
+    esac \
+    && CGO_ENABLED=0 GOOS=linux GOARCH="${TARGETARCH}" go build \
         -trimpath \
         -buildvcs=false \
         -ldflags="-s -w" \
