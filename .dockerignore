@@ -1,0 +1,9 @@
+.git
+.github
+bin
+persistence
+*.db
+*.db-shm
+*.db-wal
+.env
+compose.yml
