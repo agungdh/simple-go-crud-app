@@ -20,7 +20,7 @@ Panduan untuk agent yang bekerja di repo ini.
 | Query | **Jangan `SELECT *`**; pakai `Column(model.PublicColumns(...)...)` |
 | Cari | `search_text` (VIRTUAL) + FTS5 trigram `<tabel>_fts`; `?q=` wajib ≥3 karakter (kurang → `422`) |
 | FK | `ON UPDATE RESTRICT ON DELETE RESTRICT`, tipe `BIGINT`, beri index |
-| Error | Hanya `401`, `403`, `404`, `422`, `500`; validasi → `422`, error pasca-validasi → `500`; format `{"data": ...}` / `{"error": "..."}` |
+| Error | Hanya `400`, `401`, `403`, `404`, `422`, `500`; body tidak terbaca → `400`, isi tidak valid → `422` dengan `{"errors": {"field": ["..."]}}`, error lain → `{"error": "..."}`; pasca-validasi → `500` |
 | Test | DB sementara; tiap endpoint: happy path + error |
 | Jangan commit | `*.db*`, `bin/`, `.env`, file IDE |
 
@@ -360,13 +360,18 @@ di bawah ini yang nanti dipegang handler.
 - `POST` sukses `201` tanpa body, `PUT` sukses `200` tanpa body; data yang
   dibuat/diubah tidak dikembalikan sampai ada kebutuhan. `DELETE` membalas
   `204` tanpa body.
-- Response error: `{"error": "pesan"}`. Status **error** yang boleh dipakai
-  hanya `401`, `403`, `404`, `422`, dan `500`; `401`/`403` menyusul saat
-  autentikasi/otorisasi ditambahkan.
-- Validasi **selalu** `422`, termasuk request yang tidak terbaca: JSON rusak,
-  lebih dari satu objek, tipe field salah, field tidak dikenal, body > 1 MiB,
-  `id` bukan bilangan bulat positif, field wajib kosong, kepanjangan, tanggal
-  tidak valid, dan `q` terlalu pendek/panjang.
+- Error input (`400`/`422`): `{"errors": {"field": ["pesan", ...]}}`. Key adalah
+  nama field JSON; value adalah daftar pesan, minimal satu. Kumpulkan semua
+  error yang bisa dideteksi dan kelompokkan per field, jangan berhenti di error
+  pertama. Field yang valid tidak muncul.
+- `400` untuk body yang tidak terbaca: JSON rusak, bukan satu objek JSON, lebih
+  dari satu nilai, body kosong, atau body > 1 MiB. Key-nya `body`.
+- `422` untuk body yang terbaca tetapi isinya tidak valid: tipe field salah,
+  field tidak dikenal, `id` bukan bilangan bulat positif, field wajib kosong,
+  kepanjangan, tanggal tidak valid, atau `q` di luar 3–100 karakter.
+- Error non-validasi (`404`, `500`, nanti `401`/`403`): `{"error": "pesan"}`.
+  Status **error** yang boleh dipakai hanya `400`, `401`, `403`, `404`, `422`,
+  dan `500`; `401`/`403` menyusul saat autentikasi/otorisasi ditambahkan.
 - Setelah validasi lolos, kegagalan apa pun (unique/NIP duplikat, foreign key,
   error database) dibalas `500`. Jangan menambah status baru untuk itu.
 - `404` hanya untuk `GET`/`PUT`/`DELETE` by id saat data tidak ada atau sudah
@@ -425,11 +430,12 @@ kode. Jangan mengubah kontrak hanya agar cocok dengan kode yang sudah ada.
 - Perubahan kontrak yang mengubah bentuk response = perubahan breaking untuk
   FE; naikkan `info.version` dan catat di deskripsi operasi terkait.
 - Kontrak wajib mendokumentasikan: envelope `data` untuk `GET`, response tanpa
-  body untuk `POST`/`PUT`/`DELETE`, envelope `error`, status yang benar-benar
-  dipakai endpoint (sukses `200`/`201`/`204`, error `401`, `403`, `404`, `422`,
-  `500`), dan larangan mengekspos kolom audit/internal.
-- Kontrak tidak boleh memuat status `400`, `409`, atau `413`; semuanya
-  dipetakan ke aturan di atas.
+  body untuk `POST`/`PUT`/`DELETE`, envelope `errors` untuk `400`/`422`,
+  envelope `error` untuk error lain, status yang benar-benar dipakai endpoint
+  (sukses `200`/`201`/`204`, error `400`, `401`, `403`, `404`, `422`, `500`), dan
+  larangan mengekspos kolom audit/internal.
+- Kontrak tidak boleh memuat status `409` atau `413`; body > 1 MiB dipetakan ke
+  `400`.
 - Tanggal di kontrak memakai `pattern`, bukan `format: date`, karena DTO
   memakai `DD-MM-YYYY`; request menerima dua format.
 

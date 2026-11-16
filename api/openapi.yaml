@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: Simple Go CRUD API
-  version: 0.2.0
+  version: 0.3.0
   description: |
     Kontrak API untuk entitas `bidang` dan `pegawai`.
 
@@ -13,14 +13,19 @@ info:
     - `POST` sukses membalas `201` dan `PUT` sukses membalas `200`, keduanya
       tanpa body; data yang dibuat atau diubah tidak dikembalikan (sejak
       `0.2.0`). Ambil datanya lewat endpoint `GET` bila dibutuhkan.
-    - Response error selalu `{"error": "pesan"}` dan pesannya aman ditampilkan
-      ke pengguna.
-    - Status error yang dipakai hanya `401`, `403`, `404`, `422`, dan `500`.
-      `401`/`403` menyusul saat autentikasi/otorisasi ditambahkan.
-    - `422` berarti input tidak valid: JSON tidak terbaca, tipe salah, field
-      tidak dikenal, body melebihi 1 MiB, `id` bukan bilangan bulat positif,
-      field wajib kosong, panjang melebihi batas, tanggal tidak valid, atau `q`
-      di luar 3–100 karakter.
+    - Error input (`400`/`422`) memakai `{"errors": {"<field>": ["pesan", ...]}}`
+      (sejak `0.3.0`); satu field bisa punya beberapa pesan. `400` memakai key
+      `body` untuk body yang tidak terbaca.
+    - Error non-validasi (`404`, `500`, nanti `401`/`403`) memakai
+      `{"error": "pesan"}` yang aman ditampilkan ke pengguna.
+    - Status error yang dipakai hanya `400`, `401`, `403`, `404`, `422`, dan
+      `500`. `401`/`403` menyusul saat autentikasi/otorisasi ditambahkan.
+    - `400` berarti body request tidak terbaca: JSON rusak, bukan satu objek
+      JSON, lebih dari satu nilai, body kosong, atau body melebihi 1 MiB.
+    - `422` berarti body terbaca tetapi isinya tidak valid: tipe salah, field
+      tidak dikenal, `id` bukan bilangan bulat positif, field wajib kosong,
+      panjang melebihi batas, tanggal tidak valid, atau `q` di luar 3–100
+      karakter.
     - `404` berarti data dengan `id` tersebut tidak ditemukan.
     - `500` berarti terjadi kesalahan di server; detailnya tidak disertakan.
     - Tanggal pada response berformat `DD-MM-YYYY`; request menerima
@@ -69,6 +74,7 @@ paths:
           description: |
             Bidang dibuat. Response tanpa body dan tidak mengembalikan data
             sejak `0.2.0`; gunakan `GET /bidang/{id}` bila butuh detail.
+        '400': { $ref: '#/components/responses/BadRequest' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
@@ -101,6 +107,7 @@ paths:
           description: |
             Bidang diperbarui. Response tanpa body dan tidak mengembalikan data
             sejak `0.2.0`.
+        '400': { $ref: '#/components/responses/BadRequest' }
         '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
@@ -143,6 +150,7 @@ paths:
           description: |
             Pegawai dibuat. Response tanpa body dan tidak mengembalikan data
             sejak `0.2.0`; gunakan `GET /pegawai/{id}` bila butuh detail.
+        '400': { $ref: '#/components/responses/BadRequest' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
@@ -175,6 +183,7 @@ paths:
           description: |
             Pegawai diperbarui. Response tanpa body dan tidak mengembalikan
             data sejak `0.2.0`.
+        '400': { $ref: '#/components/responses/BadRequest' }
         '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
@@ -219,16 +228,29 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
-    UnprocessableEntity:
+    BadRequest:
       description: |
-        Input tidak valid. Mencakup request yang tidak terbaca (JSON rusak,
-        lebih dari satu objek, tipe field salah, field tidak dikenal, body
-        melebihi 1 MiB, `id` tidak valid) maupun aturan isi (field wajib kosong,
-        melebihi panjang maksimum, tanggal tidak valid, `q` di luar 3–100
-        karakter).
+        Body request tidak terbaca: JSON rusak, bukan satu objek JSON, lebih dari
+        satu nilai, body kosong, atau melebihi 1 MiB. Response memakai
+        `{"errors": {"body": ["..."]}}`.
       content:
         application/json:
-          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          schema: { $ref: '#/components/schemas/ValidationErrorResponse' }
+    UnprocessableEntity:
+      description: |
+        Body terbaca sebagai satu objek JSON, tetapi isinya tidak valid. Response
+        selalu `{"errors": {...}}` dengan key nama field JSON dan value daftar
+        pesan (satu field bisa lebih dari satu pesan); field yang valid tidak
+        muncul.
+
+        Mencakup tipe field salah, field tidak dikenal, `id` tidak valid, field
+        wajib kosong, melebihi panjang maksimum, tanggal tidak valid, dan `q` di
+        luar 3–100 karakter.
+
+        Sejak `0.3.0` error validasi tidak lagi memakai `{"error": "..."}`.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ValidationErrorResponse' }
     InternalServerError:
       description: |
         Terjadi kesalahan di server. Detail tidak disertakan; hubungi admin bila
@@ -247,6 +269,31 @@ components:
           type: string
           description: Pesan error yang aman ditampilkan.
           examples: [bidang tidak ditemukan]
+
+    ValidationErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [errors]
+      properties:
+        errors:
+          type: object
+          minProperties: 1
+          description: |
+            Pesan error input per field. Key adalah nama field JSON; `body`
+            dipakai untuk body yang tidak terbaca. Value selalu array pesan,
+            minimal satu. Field yang valid tidak muncul.
+          additionalProperties:
+            type: array
+            minItems: 1
+            items:
+              type: string
+              minLength: 1
+          examples:
+            - bidang:
+                - Bidang wajib diisi.
+                - Bidang maksimal 150 karakter.
+              body:
+                - Body request tidak terbaca.
 
     Bidang:
       type: object
