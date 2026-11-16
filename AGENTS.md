@@ -76,7 +76,7 @@ melihat daftar target.
 | `make fmt-check` | `gofmt -l .` (harus kosong) | Cek format tanpa mengubah file |
 | `make tidy` | `go mod tidy` | Rapikan `go.mod` dan `go.sum` |
 | `make api-validate` | `npx @scalar/cli document validate api/openapi.yaml` | Validasi kontrak OpenAPI (butuh Node.js) |
-| `make docs` | `npx @scalar/cli document serve api/openapi.yaml -p 8082` | Preview kontrak + "Test Request" di <http://127.0.0.1:8082> (butuh Node.js) |
+| `make docs` | `npx @scalar/cli document serve api/openapi.yaml -p 8082` | Preview kontrak + "Test Request" di <http://localhost:8082> (butuh Node.js) |
 | `make mock` | `npx @scalar/cli document mock api/openapi.yaml -p 8081` | Mock server dari kontrak di <http://127.0.0.1:8081> |
 | `make check` | `make fmt-check vet test` | Format, vet, dan test sekaligus |
 | `make clean` | `rm -rf bin` | Hapus hasil build |
@@ -424,6 +424,10 @@ berikut). Aturan di bawah ini dipegang handler.
 - Logout mencabut refresh token yang dikirim. Access token tetap valid sampai
   `exp` karena JWT stateless.
 - Password disimpan sebagai hash bcrypt dan tidak pernah masuk response/log.
+- Untuk mencoba endpoint lewat Scalar: jalankan `make run` lalu `make docs`,
+  panggil `POST /auth/login`, salin `access_token`, dan tempel ke skema
+  `bearerAuth`. Refresh token hanya dipakai untuk refresh/logout. Contoh
+  kredensial dev ada di `Makefile` (`ADMIN_USERNAME`/`ADMIN_PASSWORD`).
 - Kolom audit `created_by`/`updated_by`/`deleted_by` pada endpoint tulis diisi
   `id` user dari access token; seed admin pertama dicatat sebagai aksi sistem
   (`NULL`).
@@ -467,7 +471,7 @@ kode. Jangan mengubah kontrak hanya agar cocok dengan kode yang sudah ada.
 - `make api-validate` dijalankan sebelum merge; target ini butuh Node.js dan
   bukan bagian dari `make check`.
 - `make docs` untuk melihat kontrak sebagai dokumentasi di
-  <http://127.0.0.1:8082>. Scalar hanya untuk memvalidasi, melihat, dan
+  <http://localhost:8082>. Scalar hanya untuk memvalidasi, melihat, dan
   mem-mock kontrak, bukan generator spec atau kode.
 - Perubahan kontrak yang mengubah bentuk response = perubahan breaking untuk
   FE; naikkan `info.version` dan catat di deskripsi operasi terkait.

@@ -26,6 +26,23 @@ info:
       valid/kedaluwarsa, atau refresh token tidak valid/dicabut.
     - `403` dipakai saat token valid tetapi role tidak diizinkan menulis.
 
+    ## Login dan mencoba endpoint di Scalar
+
+    `make run` menyalakan API di `http://127.0.0.1:8080`, sedangkan
+    `make docs` menyalakan Scalar di `http://localhost:8082`. Alur mencoba
+    request yang membutuhkan login:
+
+    1. Buka `POST /auth/login` di Scalar.
+    2. Kirim body contoh (`admin` / `admin12345`) atau akun yang Anda
+       konfigurasi lewat `ADMIN_USERNAME` dan `ADMIN_PASSWORD`. Contoh tersebut
+       hanya berlaku untuk database dev yang baru di-seed oleh `make run`.
+    3. Salin `access_token` dari response `200`.
+    4. Klik tombol autentikasi Scalar (`bearerAuth`), tempel `access_token`
+       tanpa awalan `Bearer `, lalu simpan.
+    5. Endpoint `bidang` dan `pegawai` sekarang bisa dicoba. Gunakan
+       `refresh_token` hanya untuk `POST /auth/refresh` dan
+       `POST /auth/logout`, bukan sebagai Bearer token.
+
     ## Bentuk umum response
 
     - Response `GET` sukses selalu dibungkus `{"data": ...}`.
@@ -61,6 +78,11 @@ servers:
   - url: http://127.0.0.1:8080
     description: Development lokal
 
+# Every endpoint requires a Bearer access token unless it overrides security
+# with an empty list (login and refresh).
+security:
+  - bearerAuth: []
+
 tags:
   - name: auth
     description: Login, refresh token, dan logout
@@ -77,7 +99,8 @@ paths:
       description: |
         Menukar `username` dan `password` dengan sepasang access token dan
         refresh token. Pesan `401` sengaja sama untuk username tidak dikenal
-        maupun password salah.
+        maupun password salah. Salin `access_token` dari response ke skema
+        `bearerAuth` agar endpoint lain bisa dicoba.
       tags: [auth]
       security: []
       requestBody:
@@ -87,7 +110,8 @@ paths:
             schema: { $ref: '#/components/schemas/LoginInput' }
             example:
               username: admin
-              password: rahasia123
+              # Default development dari `make run`; ganti sesuai ADMIN_PASSWORD.
+              password: admin12345
       responses:
         '200':
           description: Login berhasil
@@ -367,7 +391,8 @@ components:
       bearerFormat: JWT
       description: |
         Access token JWT dari `POST /auth/login` atau `POST /auth/refresh`.
-        Kirim sebagai `Authorization: Bearer <access_token>`.
+        Di Scalar, tempel nilai `access_token` saja (tanpa awalan `Bearer `);
+        Scalar menambahkan skema `Bearer` secara otomatis.
 
   parameters:
     Q:
