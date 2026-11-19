@@ -154,10 +154,15 @@ type trackingReader struct {
 
 func (r *trackingReader) Read(p []byte) (int, error) {
 	r.read = true
-	return 0, io.EOF
+	if len(r.data) == 0 {
+		return 0, io.EOF
+	}
+	n := copy(p, r.data)
+	r.data = r.data[n:]
+	return n, nil
 }
 
-func TestUploadRejectsContentLengthOverLimitWithoutReading(t *testing.T) {
+func TestUploadRejectsContentLengthOverLimitAndDrainsBody(t *testing.T) {
 	env := newUploadEnv(t)
 	reader := &trackingReader{data: []byte("ignored")}
 
@@ -168,8 +173,8 @@ func TestUploadRejectsContentLengthOverLimitWithoutReading(t *testing.T) {
 	rec := env.serve(req)
 	requireStatus(t, rec, http.StatusRequestEntityTooLarge)
 	requireErrorBody(t, rec)
-	if reader.read {
-		t.Error("handler read the body before rejecting the oversized request")
+	if !reader.read {
+		t.Error("handler did not drain the oversized body after sending 413")
 	}
 	requireUploadDirEmpty(t, env.uploadDir)
 }

@@ -407,9 +407,11 @@ paths:
         otomatis untuk body `Blob`/`File`; Postman mengirimnya otomatis pada
         mode binary.
 
-        Server menolak lebih awal bila `Content-Length` melebihi batas, tanpa
-        menunggu body selesai. Batas `POST /upload` adalah 2 MiB dan tidak bisa
-        diubah lewat request. Body kosong atau terpotong dibalas `400`.
+        Server menolak lebih awal bila `Content-Length` melebihi batas. Batas
+        `POST /upload` adalah 2 MiB dan tidak bisa diubah lewat request. Server
+        tetap membaca sisa body setelah membalas `413` agar response sampai dan
+        koneksi ditutup dengan bersih. Body kosong atau terpotong dibalas
+        `400`.
 
         Nama file dibuat server (UUID v4). Response hanya berisi `file_key` dan
         `size`; metadata lain disimpan saat file dipindahkan ke penyimpanan

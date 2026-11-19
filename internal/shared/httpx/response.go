@@ -36,6 +36,7 @@ func WriteJSON(w http.ResponseWriter, status int, payload any) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
 	w.WriteHeader(status)
 	if _, err := w.Write(body); err != nil {
 		log.Printf("write response: %v", err)

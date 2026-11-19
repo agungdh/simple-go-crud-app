@@ -442,7 +442,9 @@ subbagian berikut). Aturan di bawah ini dipegang handler.
 - Jangan bocorkan detail error internal ke klien; log di server.
 - Batasi ukuran body request. Body JSON maksimal 1 MiB; upload dibatasi
   `UPLOAD_MAX_SIZE` dan `upload.EndpointMaxBytes` (2 MiB), dicek dari
-  `Content-Length` sebelum body dibaca, lalu dijaga `http.MaxBytesReader`.
+  `Content-Length` sebelum body ditulis. Upload yang kebesaran dibalas `413`
+  lebih dulu, lalu sisa body tetap dibaca sampai habis supaya client menerima
+  response tanpa koneksi terputus; body juga dijaga `http.MaxBytesReader`.
 - Pencarian lewat query param `?q=`: trim input, minimal 3 karakter dan
   maksimal 100 karakter (di luar itu `422`), dan jangan expose `search_text` di
   response.
@@ -491,7 +493,9 @@ subbagian berikut). Aturan di bawah ini dipegang handler.
   dibalas `400`.
 - Limit efektif = `min(UPLOAD_MAX_SIZE, 2 MiB)`. Endpoint ini memakai konstanta
   `upload.EndpointMaxBytes` (2 MiB), bukan env. Bila `Content-Length` melebihi
-  limit, balas `413` sebelum body dibaca.
+  limit, balas `413` lebih dulu, lalu baca dan buang sisa body sampai habis.
+  Menutup koneksi saat browser masih mengirim body membuat request tampak
+  pending atau berakhir sebagai connection reset, bukan `413`.
 - Setelah lolos cek header, bungkus body dengan `http.MaxBytesReader` sebagai
   pertahanan bila `Content-Length` bohong, lalu stream ke file dengan buffer
   kecil. Jangan menampung body di RAM.
@@ -571,8 +575,8 @@ kode. Jangan mengubah kontrak hanya agar cocok dengan kode yang sudah ada.
 - Tulis test perilaku untuk endpoint (happy path + error) lewat router dengan
   `httptest`; test itu tidak memuat atau memvalidasi `api/openapi.yaml`.
 - Test upload memakai direktori sementara dan limit kecil; cakup `411` tanpa
-  `Content-Length`, `413` sebelum body dibaca, body terpotong, dan tidak ada
-  file parsial yang tertinggal.
+  `Content-Length`, `413` dengan sisa body tetap dibaca sampai habis, body
+  terpotong, dan tidak ada file parsial yang tertinggal.
 
 ## Jangan commit
 
