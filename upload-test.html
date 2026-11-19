@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Upload Test — POST /upload</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f4f6f8;
+    --card: #ffffff;
+    --text: #1b1f24;
+    --muted: #667085;
+    --border: #d8dee6;
+    --accent: #2563eb;
+    --accent-text: #ffffff;
+    --ok: #15803d;
+    --ok-bg: #dcfce7;
+    --warn: #b45309;
+    --warn-bg: #fef3c7;
+    --err: #b91c1c;
+    --err-bg: #fee2e2;
+    --code: #0f172a;
+    --code-bg: #f1f5f9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1419;
+      --card: #171d24;
+      --text: #e5e9ef;
+      --muted: #9aa4b2;
+      --border: #2a3440;
+      --accent: #3b82f6;
+      --ok: #4ade80;
+      --ok-bg: #14301f;
+      --warn: #fbbf24;
+      --warn-bg: #33260b;
+      --err: #f87171;
+      --err-bg: #3a1717;
+      --code: #e2e8f0;
+      --code-bg: #0b1117;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px 16px 48px;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+  main { max-width: 920px; margin: 0 auto; display: grid; gap: 16px; }
+  header { max-width: 920px; margin: 0 auto 20px; }
+  h1 { font-size: 24px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  h2 { font-size: 16px; margin: 0 0 14px; }
+  p { margin: 0; }
+  .muted { color: var(--muted); }
+  .small { font-size: 13px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+  }
+  .grid { display: grid; gap: 12px; }
+  .row { display: grid; gap: 12px; }
+  @media (min-width: 680px) {
+    .row.two { grid-template-columns: 1fr 1fr; }
+  }
+  label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; }
+  input[type="text"], input[type="password"], input[type="url"], input[type="file"] {
+    width: 100%;
+    padding: 9px 11px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+  }
+  input[type="file"] { padding: 7px; }
+  input:focus { outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 1px; }
+  button {
+    font: inherit;
+    font-weight: 600;
+    padding: 9px 16px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: var(--accent);
+    color: var(--accent-text);
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.secondary {
+    background: transparent;
+    color: var(--text);
+    border-color: var(--border);
+  }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 14px; }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid var(--border);
+  }
+  .chip.ok { color: var(--ok); background: var(--ok-bg); border-color: transparent; }
+  .chip.warn { color: var(--warn); background: var(--warn-bg); border-color: transparent; }
+  .chip.err { color: var(--err); background: var(--err-bg); border-color: transparent; }
+  .file-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; min-height: 24px; }
+  .checkline { display: flex; gap: 8px; align-items: center; margin-top: 12px; font-size: 13px; color: var(--muted); }
+  .checkline input { width: auto; }
+  .result-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+  .result-head h2 { margin: 0; }
+  .badge {
+    font-size: 13px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 999px;
+  }
+  .badge.ok { color: var(--ok); background: var(--ok-bg); }
+  .badge.err { color: var(--err); background: var(--err-bg); }
+  .badge.warn { color: var(--warn); background: var(--warn-bg); }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 0 0 14px; }
+  dt { color: var(--muted); font-size: 13px; }
+  dd { margin: 0; font-size: 13px; word-break: break-all; }
+  pre {
+    margin: 0;
+    padding: 12px;
+    border-radius: 8px;
+    background: var(--code-bg);
+    color: var(--code);
+    overflow: auto;
+    font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    max-height: 320px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .hint {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--warn-bg);
+    color: var(--warn);
+    font-size: 13px;
+  }
+  .hidden { display: none !important; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.94em; }
+  footer { max-width: 920px; margin: 22px auto 0; color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Upload Test</h1>
+  <p class="muted small">
+    Menguji <code>POST /upload</code> dengan body biner mentah.
+    File dikirim sebagai <code>File</code> apa adanya, jadi browser mengisi
+    <code>Content-Length</code> sendiri.
+  </p>
+</header>
+
+<main>
+  <section class="card">
+    <h2>1. Koneksi &amp; login</h2>
+    <div class="grid">
+      <div>
+        <label for="apiBase">API base URL</label>
+        <input id="apiBase" type="url" value="http://localhost:8080" spellcheck="false">
+      </div>
+      <div class="row two">
+        <div>
+          <label for="username">Username</label>
+          <input id="username" type="text" value="admin" autocomplete="username" spellcheck="false">
+        </div>
+        <div>
+          <label for="password">Password</label>
+          <input id="password" type="password" value="admin12345" autocomplete="current-password">
+        </div>
+      </div>
+      <div>
+        <label for="token">Access token (boleh ditempel manual)</label>
+        <input id="token" type="password" placeholder="akan terisi setelah login" spellcheck="false">
+      </div>
+    </div>
+    <div class="actions">
+      <button id="loginBtn" type="button">Login</button>
+      <span id="authState" class="chip">belum login</span>
+      <span class="muted small">Origin halaman: <code id="pageOrigin"></code></span>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>2. Pilih file &amp; upload</h2>
+    <div class="grid">
+      <div>
+        <label for="file">File</label>
+        <input id="file" type="file">
+      </div>
+      <div id="fileMeta" class="file-meta">
+        <span class="muted small">Belum ada file.</span>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="uploadBtn" type="button" disabled>Upload</button>
+      <span id="uploadState" class="muted small"></span>
+    </div>
+  </section>
+
+  <section id="resultCard" class="card hidden">
+    <div class="result-head">
+      <h2>Hasil</h2>
+      <span id="resultBadge" class="badge">—</span>
+      <span id="duration" class="muted small"></span>
+    </div>
+    <dl id="requestFacts"></dl>
+    <pre id="responseBody"></pre>
+    <div id="resultHint" class="hint hidden"></div>
+  </section>
+</main>
+
+<footer>
+  Butuh CORS: origin halaman ini harus ada di <code>CORS_ORIGINS</code> server.
+  Default <code>make run</code> hanya mengizinkan <code>http://localhost:8082</code>,
+  jadi paling mudah: <code>npx --yes serve -l 8082 .</code> lalu buka
+  <code>http://localhost:8082/upload-test.html</code> (serve mengalihkan ke
+  <code>/upload-test</code>). Gunakan <code>localhost</code>, bukan
+  <code>127.0.0.1</code>, karena origin harus sama persis. Hentikan server
+  statis ini setelah selesai; jangan dipakai di jaringan publik.
+</footer>
+
+<script>
+(() => {
+  "use strict";
+
+  const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
+  const $ = (id) => document.getElementById(id);
+
+  const els = {
+    apiBase: $("apiBase"),
+    username: $("username"),
+    password: $("password"),
+    token: $("token"),
+    loginBtn: $("loginBtn"),
+    authState: $("authState"),
+    pageOrigin: $("pageOrigin"),
+    file: $("file"),
+    fileMeta: $("fileMeta"),
+    uploadBtn: $("uploadBtn"),
+    uploadState: $("uploadState"),
+    resultCard: $("resultCard"),
+    resultBadge: $("resultBadge"),
+    duration: $("duration"),
+    requestFacts: $("requestFacts"),
+    responseBody: $("responseBody"),
+    resultHint: $("resultHint"),
+  };
+
+  const state = {
+    file: null,
+    busy: false,
+  };
+
+  els.pageOrigin.textContent = window.location.origin;
+
+  function apiUrl(path) {
+    return els.apiBase.value.trim().replace(/\/+$/, "") + path;
+  }
+
+  function formatBytes(bytes) {
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KiB";
+    return (bytes / (1024 * 1024)).toFixed(2) + " MiB";
+  }
+
+  function parseJSON(text) {
+    try { return JSON.parse(text); } catch (err) { return null; }
+  }
+
+  function errorMessage(payload, fallback) {
+    if (!payload) return fallback;
+    if (typeof payload.error === "string") return payload.error;
+    if (payload.error && payload.error.validations) {
+      return Object.entries(payload.error.validations)
+        .map(([field, messages]) => field + ": " + [].concat(messages).join(", "))
+        .join("\n");
+    }
+    return fallback;
+  }
+
+  function setAuthState(text, kind) {
+    els.authState.textContent = text;
+    els.authState.className = "chip" + (kind ? " " + kind : "");
+  }
+
+  function setUploadState(text) {
+    els.uploadState.textContent = text || "";
+  }
+
+  function refreshUploadButton() {
+    els.uploadBtn.disabled = state.busy || !state.file;
+  }
+
+  function setBusy(busy) {
+    state.busy = busy;
+    els.loginBtn.disabled = busy;
+    els.file.disabled = busy;
+    refreshUploadButton();
+  }
+
+  function renderFileMeta() {
+    els.fileMeta.textContent = "";
+    if (!state.file) {
+      const empty = document.createElement("span");
+      empty.className = "muted small";
+      empty.textContent = "Belum ada file.";
+      els.fileMeta.appendChild(empty);
+      return;
+    }
+
+    const size = document.createElement("span");
+    size.className = "chip";
+    size.textContent = formatBytes(state.file.size);
+
+    const name = document.createElement("span");
+    name.className = "small";
+    name.textContent = state.file.name;
+
+    const verdict = document.createElement("span");
+    if (state.file.size === 0) {
+      verdict.className = "chip err";
+      verdict.textContent = "kosong → 400";
+    } else if (state.file.size > MAX_UPLOAD_BYTES) {
+      verdict.className = "chip warn";
+      verdict.textContent = "di atas 2 MiB → server 413 (uji dengan ~3 MiB)";
+    } else {
+      verdict.className = "chip ok";
+      verdict.textContent = "di bawah 2 MiB";
+    }
+
+    els.fileMeta.append(size, verdict, name);
+  }
+
+  function showResult({ ok, status, statusText, ms, facts, bodyText, hint }) {
+    els.resultCard.classList.remove("hidden");
+    els.resultBadge.textContent = status ? status + " " + (statusText || "") : "Gagal";
+    els.resultBadge.className = "badge " + (ok ? "ok" : status && status < 500 ? "warn" : "err");
+    els.duration.textContent = ms == null ? "" : Math.round(ms) + " ms";
+
+    els.requestFacts.textContent = "";
+    for (const [key, value] of Object.entries(facts || {})) {
+      const dt = document.createElement("dt");
+      dt.textContent = key;
+      const dd = document.createElement("dd");
+      dd.textContent = String(value);
+      els.requestFacts.append(dt, dd);
+    }
+
+    els.responseBody.textContent = bodyText || "(tanpa body)";
+
+    if (hint) {
+      els.resultHint.textContent = hint;
+      els.resultHint.classList.remove("hidden");
+    } else {
+      els.resultHint.textContent = "";
+      els.resultHint.classList.add("hidden");
+    }
+
+    els.resultCard.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  async function login() {
+    const username = els.username.value.trim();
+    const password = els.password.value;
+
+    if (!username || !password) {
+      setAuthState("username/password kosong", "err");
+      return;
+    }
+
+    setBusy(true);
+    setAuthState("login...", "warn");
+
+    try {
+      const started = performance.now();
+      const res = await fetch(apiUrl("/auth/login"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+      const text = await res.text();
+      const ms = performance.now() - started;
+      const payload = parseJSON(text);
+
+      if (!res.ok) {
+        const message = errorMessage(payload, "Login gagal (HTTP " + res.status + ")");
+        setAuthState("login gagal", "err");
+        showResult({
+          ok: false,
+          status: res.status,
+          statusText: res.statusText,
+          ms,
+          facts: { Method: "POST", URL: apiUrl("/auth/login") },
+          bodyText: text,
+          hint: message,
+        });
+        return;
+      }
+
+      const token = payload && payload.access_token;
+      if (!token) {
+        setAuthState("response tanpa access_token", "err");
+        return;
+      }
+
+      els.token.value = token;
+      setAuthState("login OK", "ok");
+      setUploadState("");
+    } catch (err) {
+      setAuthState("tidak bisa menghubungi API", "err");
+      showResult({
+        ok: false,
+        status: null,
+        statusText: "",
+        ms: null,
+        facts: { Method: "POST", URL: apiUrl("/auth/login"), Error: String(err) },
+        bodyText: "",
+        hint: "Gagal fetch. Cek API sudah jalan dan origin halaman ini diizinkan CORS.",
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function upload() {
+    const file = state.file;
+    if (!file) return;
+
+    const token = els.token.value.trim();
+    if (!token) {
+      setUploadState("login dulu atau tempel access token");
+      setAuthState("token kosong", "err");
+      return;
+    }
+
+    setBusy(true);
+    setUploadState("mengirim " + formatBytes(file.size) + "...");
+
+    const facts = {
+      Method: "POST",
+      URL: apiUrl("/upload"),
+      "Content-Type": "application/octet-stream",
+      "Authorization": "Bearer " + token.slice(0, 12) + "…",
+      "Content-Length": file.size + " (otomatis dari File)",
+      "File": file.name,
+      "Ukuran": formatBytes(file.size) + " (" + file.size + " byte)",
+    };
+
+    const started = performance.now();
+
+    try {
+      const res = await fetch(apiUrl("/upload"), {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer " + token,
+          "Content-Type": "application/octet-stream",
+        },
+        body: file,
+      });
+      const text = await res.text();
+      const ms = performance.now() - started;
+      const payload = parseJSON(text);
+
+      let hint = "";
+      if (res.status === 411) {
+        hint = "Server tidak menerima Content-Length (request dianggap chunked). Kalau ini terjadi untuk file biasa, berarti client mengirim tanpa ukuran.";
+      } else if (res.status === 413) {
+        hint = "File melebihi limit efektif server (2 MiB, atau UPLOAD_MAX_SIZE kalau lebih kecil).";
+      } else if (res.status === 400) {
+        hint = "Body kosong, terpotong, atau tidak terbaca.";
+      } else if (res.status === 401) {
+        hint = "Access token tidak valid atau kedaluwarsa. Login ulang.";
+      } else if (!res.ok) {
+        hint = errorMessage(payload, "HTTP " + res.status);
+      } else if (payload && payload.data && payload.data.file_key) {
+        hint = "Sukses. file_key: " + payload.data.file_key;
+      }
+
+      const pretty = payload ? JSON.stringify(payload, null, 2) : text;
+      showResult({
+        ok: res.ok,
+        status: res.status,
+        statusText: res.statusText,
+        ms,
+        facts,
+        bodyText: pretty,
+        hint,
+      });
+      setUploadState(res.ok ? "selesai" : "ditolak server (" + res.status + ")");
+    } catch (err) {
+      const ms = performance.now() - started;
+      setUploadState("gagal mengirim");
+      showResult({
+        ok: false,
+        status: null,
+        statusText: "",
+        ms,
+        facts: Object.assign({}, facts, { Error: String(err) }),
+        bodyText: "",
+        hint: "Browser tidak menerima response. Pastikan API jalan dan origin " +
+          window.location.origin + " ada di CORS_ORIGINS.",
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  els.loginBtn.addEventListener("click", login);
+  els.uploadBtn.addEventListener("click", upload);
+
+  els.file.addEventListener("change", () => {
+    state.file = els.file.files && els.file.files[0] ? els.file.files[0] : null;
+    setUploadState("");
+    renderFileMeta();
+    refreshUploadButton();
+  });
+
+  els.token.addEventListener("input", () => {
+    if (els.token.value.trim()) {
+      setAuthState("token terisi", "ok");
+    } else {
+      setAuthState("belum login", "");
+    }
+  });
+
+  renderFileMeta();
+  refreshUploadButton();
+})();
+</script>
+</body>
+</html>
