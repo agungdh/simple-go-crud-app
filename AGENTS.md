@@ -7,12 +7,13 @@ Panduan untuk agent yang bekerja di repo ini.
 | Topik | Intinya |
 | --- | --- |
 | Stack | Go + chi + Bun + SQLite (`modernc.org/sqlite`) + goose. Jangan ganti. |
-| Status | Kontrak, domain `bidang`/`pegawai`/`auth`, router, dan autentikasi sudah ada; server HTTP aktif di `:8080` |
-| Auth | Access token JWT + refresh token buram; role `admin` (baca/tulis) dan `user` (baca saja); semua endpoint data wajib login |
+| Status | Kontrak, domain `bidang`/`pegawai`/`auth`/`upload`, router, dan autentikasi sudah ada; server HTTP aktif di `:8080` |
+| Auth | Access token JWT + refresh token buram; role `admin` (baca/tulis) dan `user` (baca + upload sementara); semua endpoint data wajib login |
+| Upload | `POST /upload` binary, `Content-Length` wajib, limit global `UPLOAD_MAX_SIZE` + endpoint 2 MiB, di-stream ke `persistence/upload/tmp` |
 | Cek cepat | `make help` (daftar target), `make check` (wajib sebelum selesai), `make api-validate` (Scalar, butuh Node.js) untuk kontrak |
 | DB | `persistence/db/app.db`, WAL, `synchronous=NORMAL`, `busy_timeout`, `foreign_keys=ON`, pool kecil |
 | Migration | `make migrate-create NAME=nama` → isi Up/Down → `make migrate-up` |
-| Domain | `main.go` wiring + `internal/router`; tiap domain (`auth`, `bidang`, `pegawai`) satu paket berisi model, repository, service, validation, DTO, dan handler; paket shared ada di `internal/shared/` (`entity`, `httpx`, `search`, `apperr`, `database`, `testutil`) |
+| Domain | `main.go` wiring + `internal/router`; tiap domain (`auth`, `bidang`, `pegawai`, `upload`) satu paket berisi model, repository, service, validation, DTO, dan handler; paket shared ada di `internal/shared/` (`entity`, `httpx`, `search`, `apperr`, `database`, `testutil`) |
 | Kontrak | `api/openapi.yaml` ditulis **dulu**, baru implementasi; tanpa generator/dependency OpenAPI di Go; DTO tangan di `dto.go` paket domain; `make api-validate` (Scalar) |
 | ID | `INTEGER PRIMARY KEY AUTOINCREMENT`, di Go `int64` |
 | Waktu | Audit `*_at` = epoch **ms UTC**; tanggal/waktu bisnis = `TEXT` ISO-8601 (`YYYY-MM-DD`) |
@@ -21,9 +22,9 @@ Panduan untuk agent yang bekerja di repo ini.
 | Query | **Jangan `SELECT *`**; pakai `Column(entity.PublicColumns(...)...)` |
 | Cari | `search_text` (VIRTUAL) + FTS5 trigram `<tabel>_fts`; `?q=` wajib ≥3 karakter (kurang → `422`) |
 | FK | `ON UPDATE RESTRICT ON DELETE RESTRICT`, tipe `BIGINT`, beri index |
-| Error | Hanya `400`, `401`, `403`, `404`, `422`, `500`; `400`/`401`/`403`/`404`/`500` → `{"error": "..."}`, `422` → `{"error": {"validations": {"field": ["..."]}}}`; validasi termasuk unik/FK → `422`, error tak terduga → `500` |
+| Error | Hanya `400`, `401`, `403`, `404`, `422`, `500`; khusus `POST /upload` juga `411`/`413`; `400`/`401`/`403`/`404`/`500` → `{"error": "..."}`, `422` → `{"error": {"validations": {"field": ["..."]}}}`; validasi termasuk unik/FK → `422`, error tak terduga → `500` |
 | Test | DB sementara; tiap endpoint: happy path + error |
-| Jangan commit | `*.db*`, `bin/`, `.env`, file IDE |
+| Jangan commit | `*.db*`, `bin/`, `.env`, `persistence/upload/tmp/*`, file IDE |
 
 ## Proyek
 
@@ -68,7 +69,7 @@ melihat daftar target.
 
 | Perintah | Ekuivalen manual | Fungsi |
 | --- | --- | --- |
-| `make run` | `CORS_ORIGINS=http://localhost:8082 ADDR=:8080 DB_PATH=persistence/db/app.db JWT_SECRET=... ADMIN_PASSWORD=... go run .` | Buka database + migration, lalu jalankan server HTTP |
+| `make run` | `CORS_ORIGINS=http://localhost:8082 ADDR=:8080 DB_PATH=persistence/db/app.db JWT_SECRET=... ADMIN_PASSWORD=... UPLOAD_MAX_SIZE=10MB go run .` | Buka database + migration, lalu jalankan server HTTP |
 | `make build` | `go build -trimpath -o bin/simple-go-crud-app .` | Build binary ke `bin/` |
 | `make test` | `go test ./...` | Jalankan semua test |
 | `make vet` | `go vet ./...` | Jalankan `go vet` |
@@ -114,6 +115,7 @@ lewat `go run`, jadi tidak perlu install goose. Override bila perlu, mis.
 | `ADMIN_USERNAME` | `admin` | seed admin pertama saat startup |
 | `ADMIN_PASSWORD` | — (wajib saat belum ada user aktif) | seed admin pertama saat startup |
 | `ADMIN_NAME` | `Administrator` | seed admin pertama saat startup |
+| `UPLOAD_MAX_SIZE` | `10MB` | `make run`, server (menerima `10MB`, `2MiB`, atau byte) |
 | `NAME` | — (wajib) | `make migrate-create` |
 | `GOOSE` | `go run -tags '<GOOSE_TAGS>' github.com/pressly/goose/v3/cmd/goose@v3.30.0` | Target migration |
 | `DOCS_PORT` | `8082` | `make docs` |
@@ -132,6 +134,8 @@ Selalu jalankan `make check` (fmt, vet, test) sebelum selesai.
   - `bidang/` — domain bidang: model, repository, service, validation, DTO, handler.
   - `pegawai/` — domain pegawai: model, repository, service, validation, date,
     DTO, handler.
+  - `upload/` — upload file sementara: limit/parser ukuran, service streaming
+    ke disk, handler, DTO. Tanpa tabel database.
   - `router/` — komposisi route, CORS, recoverer; satu-satunya tempat yang
     merangkai semua domain.
   - `shared/` — kode yang dipakai lintas domain:
@@ -148,6 +152,9 @@ Selalu jalankan `make check` (fmt, vet, test) sebelum selesai.
   kode generated dan tidak ada generator.
 - `migrations/` — file migration goose.
 - `persistence/db/` — database runtime (tidak di-commit); hanya `.gitkeep`.
+- `persistence/upload/tmp/` — file upload sementara (tidak di-commit); hanya
+  `.gitkeep`. Nama file dibuat server (UUID v4) dan dipindahkan ke penyimpanan
+  permanen di luar alur upload ini.
 - `Makefile` — target perintah harian; sumber kebenaran daftar perintah.
 - `compose.yml` — sqlite-web untuk inspeksi database.
 - Tanggung jawab tetap dipisah per file walau satu paket: `repository.go` hanya
@@ -405,10 +412,13 @@ subbagian berikut). Aturan di bawah ini dipegang handler.
 - Response `GET` sukses: `{"data": ...}`.
 - `POST` sukses `201` tanpa body, `PUT` sukses `200` tanpa body; data yang
   dibuat/diubah tidak dikembalikan sampai ada kebutuhan. `DELETE` membalas
-  `204` tanpa body.
+  `204` tanpa body. Pengecualian: `POST /upload` membalas `201` dengan
+  `{"data": {"file_key": "...", "size": ...}}` agar client punya referensi file
+  sementara.
 - Error non-validasi (`400`, `401`, `403`, `404`, `500`):
   `{"error": "pesan"}`. Status **error** yang boleh dipakai hanya `400`, `401`,
-  `403`, `404`, `422`, dan `500`.
+  `403`, `404`, `422`, dan `500`. Khusus `POST /upload`, `411` (tanpa
+  `Content-Length`) dan `413` (body terlalu besar) juga dipakai.
 - Error validasi (`422`):
   `{"error": {"validations": {"field": ["pesan", ...]}}}`. Key adalah nama
   field JSON; value adalah daftar pesan, minimal satu. Kumpulkan semua error
@@ -430,7 +440,9 @@ subbagian berikut). Aturan di bawah ini dipegang handler.
 - Jangan expose kolom audit (`created_*`, `updated_*`, `deleted_*`) di response
   maupun request. Gunakan DTO terpisah atau `json:"-"`.
 - Jangan bocorkan detail error internal ke klien; log di server.
-- Batasi ukuran body request.
+- Batasi ukuran body request. Body JSON maksimal 1 MiB; upload dibatasi
+  `UPLOAD_MAX_SIZE` dan `upload.EndpointMaxBytes` (2 MiB), dicek dari
+  `Content-Length` sebelum body dibaca, lalu dijaga `http.MaxBytesReader`.
 - Pencarian lewat query param `?q=`: trim input, minimal 3 karakter dan
   maksimal 100 karakter (di luar itu `422`), dan jangan expose `search_text` di
   response.
@@ -451,7 +463,8 @@ subbagian berikut). Aturan di bawah ini dipegang handler.
 - Login gagal, access token tidak valid/kedaluwarsa, dan refresh token
   dicabut/kedaluwarsa dibalas `401`. Token valid tetapi role tidak berhak
   dibalas `403`.
-- Role `admin` boleh membaca dan menulis; role `user` hanya boleh `GET`.
+- Role `admin` boleh membaca dan menulis. Role `user` hanya boleh `GET`,
+  kecuali `POST /upload` yang boleh dipakai kedua role.
 - Logout mencabut refresh token yang dikirim. Access token tetap valid sampai
   `exp` karena JWT stateless.
 - Password disimpan sebagai hash bcrypt dan tidak pernah masuk response/log.
@@ -468,6 +481,29 @@ subbagian berikut). Aturan di bawah ini dipegang handler.
 - Admin pertama di-seed dari `ADMIN_USERNAME`/`ADMIN_PASSWORD`/`ADMIN_NAME`
   hanya saat belum ada user aktif. Tidak ada endpoint manajemen user; akun role
   `user` ditambahkan di luar API.
+
+#### Upload
+
+- `POST /upload` menerima body biner mentah (`application/octet-stream`), bukan
+  `multipart/form-data`. Boleh diakses role `admin` dan `user`.
+- Client **wajib** mengirim `Content-Length`. Tanpa header itu atau bila memakai
+  transfer encoding chunked, balas `411` tanpa membaca body. `Content-Length: 0`
+  dibalas `400`.
+- Limit efektif = `min(UPLOAD_MAX_SIZE, 2 MiB)`. Endpoint ini memakai konstanta
+  `upload.EndpointMaxBytes` (2 MiB), bukan env. Bila `Content-Length` melebihi
+  limit, balas `413` sebelum body dibaca.
+- Setelah lolos cek header, bungkus body dengan `http.MaxBytesReader` sebagai
+  pertahanan bila `Content-Length` bohong, lalu stream ke file dengan buffer
+  kecil. Jangan menampung body di RAM.
+- Nama file dibuat server dengan UUID v4, tanpa ekstensi. Folder temp tetap
+  `persistence/upload/tmp` (konstanta `upload.TempDir`), file `0o600`, folder
+  `0o700`. Tidak ada tabel database, metadata content type, atau pemindahan
+  file permanen pada alur ini.
+- Sukses membalas `201` dengan `{"data": {"file_key": "<uuid>", "size": <byte>}}`.
+  Body terpotong/klien putus dibalas `400`; kegagalan disk dibalas `500`.
+- File parsial wajib dihapus saat gagal.
+- Route upload memakai read deadline 1 menit (`upload.ReadTimeout`) lewat
+  `http.ResponseController`; route lain tetap memakai `ReadTimeout` server.
 
 #### Kontrak API (contract-first)
 
@@ -511,12 +547,13 @@ kode. Jangan mengubah kontrak hanya agar cocok dengan kode yang sudah ada.
 - Perubahan kontrak yang mengubah bentuk response = perubahan breaking untuk
   FE; naikkan `info.version` dan catat di deskripsi operasi terkait.
 - Kontrak wajib mendokumentasikan: envelope `data` untuk `GET`, response tanpa
-  body untuk `POST`/`PUT`/`DELETE`, envelope `error` (`validations` di dalamnya
-  untuk `422`), status yang benar-benar dipakai endpoint (sukses
-  `200`/`201`/`204`, error `400`, `401`, `403`, `404`, `422`, `500`), dan
-  larangan mengekspos kolom audit/internal.
-- Kontrak tidak boleh memuat status `409` atau `413`; body > 1 MiB dipetakan ke
-  `400`.
+  body untuk `POST`/`PUT`/`DELETE` (kecuali `POST /upload` yang mengembalikan
+  `data`), envelope `error` (`validations` di dalamnya untuk `422`), status yang
+  benar-benar dipakai endpoint (sukses `200`/`201`/`204`, error `400`, `401`,
+  `403`, `404`, `422`, `500`, plus `411`/`413` khusus upload), dan larangan
+  mengekspos kolom audit/internal.
+- Kontrak tidak boleh memuat status `409`; `413` hanya untuk `POST /upload`.
+  Body JSON > 1 MiB tetap dipetakan ke `400`.
 - Tanggal di kontrak memakai `pattern`, bukan `format: date`, karena DTO
   memakai `DD-MM-YYYY`; request menerima dua format.
 
@@ -533,6 +570,9 @@ kode. Jangan mengubah kontrak hanya agar cocok dengan kode yang sudah ada.
   menambah atau mengubah DTO; nama field JSON harus sama persis dengan schema.
 - Tulis test perilaku untuk endpoint (happy path + error) lewat router dengan
   `httptest`; test itu tidak memuat atau memvalidasi `api/openapi.yaml`.
+- Test upload memakai direktori sementara dan limit kecil; cakup `411` tanpa
+  `Content-Length`, `413` sebelum body dibaca, body terpotong, dan tidak ada
+  file parsial yang tertinggal.
 
 ## Jangan commit
 

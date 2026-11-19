@@ -3,3 +3,5 @@
 *.db-wal
 bin/
 .env
+persistence/upload/tmp/*
+!persistence/upload/tmp/.gitkeep

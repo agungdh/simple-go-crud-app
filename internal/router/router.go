@@ -15,14 +15,18 @@ import (
 	"simple-go-crud-app/internal/bidang"
 	"simple-go-crud-app/internal/pegawai"
 	"simple-go-crud-app/internal/shared/httpx"
+	"simple-go-crud-app/internal/upload"
 )
 
 // Config holds the settings required to build the HTTP router.
 type Config struct {
-	AllowedOrigins  []string
-	JWTSecret       string
-	AccessTokenTTL  time.Duration
-	RefreshTokenTTL time.Duration
+	AllowedOrigins         []string
+	JWTSecret              string
+	AccessTokenTTL         time.Duration
+	RefreshTokenTTL        time.Duration
+	UploadMaxBytes         int64
+	UploadEndpointMaxBytes int64
+	UploadTempDir          string
 }
 
 // New wires the domain packages into the HTTP router. Routes mirror
@@ -43,6 +47,19 @@ func New(db *bun.DB, cfg Config) (http.Handler, error) {
 	pegawaiHandler := pegawai.NewHandler(pegawai.NewService(pegawaiRepo, bidangRepo))
 	authService := auth.NewService(userRepo, refreshRepo, tokens)
 	authHandler := auth.NewHandler(authService)
+
+	uploadLimit := cfg.UploadMaxBytes
+	if cfg.UploadEndpointMaxBytes < uploadLimit {
+		uploadLimit = cfg.UploadEndpointMaxBytes
+	}
+	uploadService, err := upload.NewService(upload.Config{
+		TempDir:  cfg.UploadTempDir,
+		MaxBytes: uploadLimit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("configure upload: %w", err)
+	}
+	uploadHandler := upload.NewHandler(uploadService)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -70,6 +87,10 @@ func New(db *bun.DB, cfg Config) (http.Handler, error) {
 		r.Get("/bidang/{id}", bidangHandler.Get)
 		r.Get("/pegawai", pegawaiHandler.List)
 		r.Get("/pegawai/{id}", pegawaiHandler.Get)
+
+		// Temporary uploads are allowed for both roles. Only this route gets
+		// the longer read deadline.
+		r.With(readTimeout(upload.ReadTimeout)).Post("/upload", uploadHandler.Create)
 
 		// Writes require the admin role.
 		r.Group(func(r chi.Router) {

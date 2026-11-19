@@ -17,6 +17,15 @@ var (
 	// ErrInvalidToken is returned when an access or refresh token is missing,
 	// malformed, expired, revoked, or belongs to an inactive user.
 	ErrInvalidToken = errors.New("invalid token")
+	// ErrLengthRequired is returned when an upload request does not carry a
+	// usable Content-Length header. The HTTP layer maps it to 411.
+	ErrLengthRequired = errors.New("content length required")
+	// ErrBodyTooLarge is returned when a streamed upload exceeds its size
+	// limit. The HTTP layer maps it to 413.
+	ErrBodyTooLarge = errors.New("body too large")
+	// ErrIncompleteBody is returned when an upload body ends before the
+	// declared Content-Length. The HTTP layer maps it to 400.
+	ErrIncompleteBody = errors.New("incomplete body")
 )
 
 // FieldErrors collects validation messages keyed by JSON field name. The key

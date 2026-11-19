@@ -16,6 +16,7 @@ import (
 	"simple-go-crud-app/internal/auth"
 	"simple-go-crud-app/internal/router"
 	"simple-go-crud-app/internal/shared/database"
+	"simple-go-crud-app/internal/upload"
 )
 
 //go:embed migrations/*.sql
@@ -40,6 +41,10 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	uploadMaxBytes, err := upload.ParseSize(envOr("UPLOAD_MAX_SIZE", "10MB"))
+	if err != nil {
+		return fmt.Errorf("parse UPLOAD_MAX_SIZE: %w", err)
+	}
 
 	db, err := database.Open(dbPath)
 	if err != nil {
@@ -52,10 +57,13 @@ func run() error {
 	}
 
 	httpHandler, err := router.New(db, router.Config{
-		AllowedOrigins:  corsOrigins,
-		JWTSecret:       jwtSecret,
-		AccessTokenTTL:  accessTTL,
-		RefreshTokenTTL: refreshTTL,
+		AllowedOrigins:         corsOrigins,
+		JWTSecret:              jwtSecret,
+		AccessTokenTTL:         accessTTL,
+		RefreshTokenTTL:        refreshTTL,
+		UploadMaxBytes:         uploadMaxBytes,
+		UploadEndpointMaxBytes: upload.EndpointMaxBytes,
+		UploadTempDir:          upload.TempDir,
 	})
 	if err != nil {
 		return fmt.Errorf("build router: %w", err)

@@ -18,6 +18,7 @@ import (
 	"simple-go-crud-app/internal/router"
 	"simple-go-crud-app/internal/shared/httpx"
 	"simple-go-crud-app/internal/shared/testutil"
+	"simple-go-crud-app/internal/upload"
 )
 
 type testEnv struct {
@@ -28,6 +29,7 @@ type testEnv struct {
 	userToken  string
 	adminID    int64
 	userID     int64
+	uploadDir  string
 }
 
 const (
@@ -43,14 +45,27 @@ const (
 
 func newTestEnv(t *testing.T) *testEnv {
 	t.Helper()
+	return newTestEnvWithConfig(t, nil)
+}
+
+func newTestEnvWithConfig(t *testing.T, mutate func(*router.Config)) *testEnv {
+	t.Helper()
 
 	db := testutil.OpenDB(t)
-	h, err := router.New(db, router.Config{
-		AllowedOrigins:  []string{testOrigin},
-		JWTSecret:       testJWTSecret,
-		AccessTokenTTL:  testAccessTTL,
-		RefreshTokenTTL: testRefreshTTL,
-	})
+	cfg := router.Config{
+		AllowedOrigins:         []string{testOrigin},
+		JWTSecret:              testJWTSecret,
+		AccessTokenTTL:         testAccessTTL,
+		RefreshTokenTTL:        testRefreshTTL,
+		UploadMaxBytes:         10 << 20,
+		UploadEndpointMaxBytes: upload.EndpointMaxBytes,
+		UploadTempDir:          t.TempDir(),
+	}
+	if mutate != nil {
+		mutate(&cfg)
+	}
+
+	h, err := router.New(db, cfg)
 	if err != nil {
 		t.Fatalf("build router: %v", err)
 	}
@@ -79,6 +94,7 @@ func newTestEnv(t *testing.T) *testEnv {
 		userToken:  userToken,
 		adminID:    admin.ID,
 		userID:     user.ID,
+		uploadDir:  cfg.UploadTempDir,
 	}
 }
 

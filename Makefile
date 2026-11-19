@@ -15,6 +15,7 @@ REFRESH_TOKEN_TTL ?= 168h
 ADMIN_USERNAME   ?= admin
 ADMIN_PASSWORD   ?= admin12345
 ADMIN_NAME       ?= Administrator
+UPLOAD_MAX_SIZE  ?= 10MB
 # Build goose with SQLite support only; the project does not use other drivers.
 GOOSE_TAGS ?= no_clickhouse no_libsql no_mssql no_azuresql no_mysql no_postgres no_vertica no_ydb
 GOOSE      ?= go run -tags '$(GOOSE_TAGS)' github.com/pressly/goose/v3/cmd/goose@v3.30.0
@@ -38,7 +39,8 @@ run: ## Jalankan server HTTP (migrasi otomatis)
 	CORS_ORIGINS=$(CORS_ORIGINS) ADDR=$(ADDR) DB_PATH=$(DB_PATH) \
 	JWT_SECRET='$(JWT_SECRET)' ACCESS_TOKEN_TTL=$(ACCESS_TOKEN_TTL) \
 	REFRESH_TOKEN_TTL=$(REFRESH_TOKEN_TTL) ADMIN_USERNAME='$(ADMIN_USERNAME)' \
-	ADMIN_PASSWORD='$(ADMIN_PASSWORD)' ADMIN_NAME='$(ADMIN_NAME)' go run .
+	ADMIN_PASSWORD='$(ADMIN_PASSWORD)' ADMIN_NAME='$(ADMIN_NAME)' \
+	UPLOAD_MAX_SIZE=$(UPLOAD_MAX_SIZE) go run .
 
 build: ## Build binary ke bin/
 	@mkdir -p $(BIN_DIR)

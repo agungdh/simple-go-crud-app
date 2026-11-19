@@ -22,6 +22,8 @@ const (
 	MessageInvalidToken       = "Token tidak valid atau sudah kedaluwarsa."
 	MessageAuthRequired       = "Autentikasi diperlukan."
 	MessageForbidden          = "Akses ditolak."
+	MessageLengthRequired     = "Header Content-Length wajib diisi."
+	MessageTooLarge           = "Ukuran file melebihi batas."
 )
 
 // WriteJSON writes a JSON payload with the given status.
@@ -71,6 +73,18 @@ func WriteServiceError(w http.ResponseWriter, operation string, err error) {
 	}
 	if errors.Is(err, apperr.ErrInvalidToken) {
 		WriteError(w, http.StatusUnauthorized, MessageInvalidToken)
+		return
+	}
+	if errors.Is(err, apperr.ErrLengthRequired) {
+		WriteError(w, http.StatusLengthRequired, MessageLengthRequired)
+		return
+	}
+	if errors.Is(err, apperr.ErrBodyTooLarge) {
+		WriteError(w, http.StatusRequestEntityTooLarge, MessageTooLarge)
+		return
+	}
+	if errors.Is(err, apperr.ErrIncompleteBody) {
+		WriteError(w, http.StatusBadRequest, MessageBadBody)
 		return
 	}
 	if errors.Is(err, apperr.ErrNotFound) {

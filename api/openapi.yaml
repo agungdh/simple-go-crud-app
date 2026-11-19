@@ -2,9 +2,10 @@ openapi: 3.1.0
 
 info:
   title: Simple Go CRUD API
-  version: 0.6.0
+  version: 0.7.0
   description: |
-    Kontrak API untuk autentikasi, entitas `bidang`, dan entitas `pegawai`.
+    Kontrak API untuk autentikasi, entitas `bidang`, entitas `pegawai`, dan
+    upload file sementara.
 
     Dokumen ini hanya memuat hal yang dibutuhkan konsumen: bentuk request dan
     response, aturan validasi, serta status yang mungkin diterima.
@@ -21,7 +22,7 @@ info:
     - `POST /auth/logout` mencabut refresh token yang dikirim. Access token tetap
       berlaku sampai kedaluwarsa karena tidak disimpan di server.
     - Role `admin` boleh membaca dan menulis. Role `user` hanya boleh membaca
-      (`GET`).
+      (`GET`), kecuali `POST /upload` yang boleh dipakai kedua role.
     - `401` dipakai untuk kredensial salah, access token tidak ada/tidak
       valid/kedaluwarsa, atau refresh token tidak valid/dicabut.
     - `403` dipakai saat token valid tetapi role tidak diizinkan menulis.
@@ -51,15 +52,22 @@ info:
       dikembalikan (sejak `0.2.0`). Ambil datanya lewat endpoint `GET` bila
       dibutuhkan.
     - `POST /auth/logout` dan `DELETE` membalas `204` tanpa body.
+    - `POST /upload` adalah pengecualian: sukses membalas `201` dengan
+      `{"data": {"file_key": "...", "size": ...}}` agar client dapat referensi
+      file sementara (sejak `0.7.0`).
     - Error `400`, `401`, `403`, `404`, dan `500` memakai `{"error": "pesan"}`
       yang aman ditampilkan ke pengguna.
     - Error validasi (`422`) memakai
       `{"error": {"validations": {"<field>": ["pesan", ...]}}}` (sejak
       `0.4.0`); satu field bisa punya beberapa pesan.
     - Status error yang dipakai hanya `400`, `401`, `403`, `404`, `422`, dan
-      `500`.
+      `500`, kecuali `POST /upload` yang juga memakai `411` dan `413`.
     - `400` berarti body request tidak terbaca: JSON rusak, bukan satu objek
-      JSON, lebih dari satu nilai, body kosong, atau body melebihi 1 MiB.
+      JSON, lebih dari satu nilai, body kosong, atau body melebihi 1 MiB. Pada
+      `POST /upload`, `400` berarti body kosong atau terpotong.
+    - `411` khusus `POST /upload`: header `Content-Length` tidak ada atau
+      request memakai transfer encoding chunked.
+    - `413` khusus `POST /upload`: ukuran body melebihi batas.
     - `422` berarti body terbaca tetapi isinya tidak valid: tipe salah, field
       tidak dikenal, `id` bukan bilangan bulat positif, field wajib kosong,
       panjang melebihi batas, tanggal tidak valid, `q` di luar 3–100 karakter,
@@ -90,6 +98,8 @@ tags:
     description: Data bidang/departemen
   - name: pegawai
     description: Data pegawai, selalu terikat ke satu bidang
+  - name: upload
+    description: Upload file biner sementara
 
 paths:
   /auth/login:
@@ -383,6 +393,52 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
+  /upload:
+    post:
+      operationId: uploadFile
+      summary: Upload file sementara
+      description: |
+        Menerima isi file biner mentah (`application/octet-stream`) dan
+        menyimpannya sementara. Boleh diakses role `admin` dan `user`.
+
+        Client wajib mengirim header `Content-Length` yang sesuai dengan ukuran
+        body. Tanpa header itu, atau bila request memakai transfer encoding
+        chunked, server membalas `411`. Browser mengirim `Content-Length`
+        otomatis untuk body `Blob`/`File`; Postman mengirimnya otomatis pada
+        mode binary.
+
+        Server menolak lebih awal bila `Content-Length` melebihi batas, tanpa
+        menunggu body selesai. Batas `POST /upload` adalah 2 MiB dan tidak bisa
+        diubah lewat request. Body kosong atau terpotong dibalas `400`.
+
+        Nama file dibuat server (UUID v4). Response hanya berisi `file_key` dan
+        `size`; metadata lain disimpan saat file dipindahkan ke penyimpanan
+        permanen.
+      tags: [upload]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        description: |
+          Isi file biner mentah. Kirim header `Content-Length`; jangan memakai
+          `multipart/form-data`.
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '201':
+          description: File sementara tersimpan.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UploadResponse' }
+        '400': { $ref: '#/components/responses/UploadBadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '411': { $ref: '#/components/responses/LengthRequired' }
+        '413': { $ref: '#/components/responses/ContentTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -449,8 +505,8 @@ components:
     Forbidden:
       description: |
         Token valid, tetapi role tidak diizinkan melakukan operasi ini. Role
-        `user` hanya boleh membaca; operasi tulis memerlukan role `admin`.
-        Response memakai `{"error": "..."}`.
+        `user` hanya boleh membaca dan memakai `POST /upload`; operasi tulis
+        lain memerlukan role `admin`. Response memakai `{"error": "..."}`.
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -480,6 +536,32 @@ components:
                 bidang:
                   - Bidang wajib diisi.
                   - Bidang maksimal 150 karakter.
+    UploadBadRequest:
+      description: |
+        Body upload kosong, terpotong, atau tidak terbaca. Response memakai
+        `{"error": "..."}`.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example:
+            error: Body request tidak terbaca.
+    LengthRequired:
+      description: |
+        Header `Content-Length` tidak dikirim atau request memakai transfer
+        encoding chunked. Response memakai `{"error": "..."}`.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example:
+            error: Header Content-Length wajib diisi.
+    ContentTooLarge:
+      description: |
+        Ukuran body melebihi batas upload. Response memakai `{"error": "..."}`.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example:
+            error: Ukuran file melebihi batas.
     InternalServerError:
       description: |
         Terjadi kesalahan di server. Detail tidak disertakan; hubungi admin bila
@@ -527,7 +609,8 @@ components:
       type: string
       enum: [admin, user]
       description: |
-        `admin` boleh membaca dan menulis. `user` hanya boleh membaca.
+        `admin` boleh membaca dan menulis. `user` hanya boleh membaca,
+        kecuali `POST /upload` yang boleh dipakai kedua role.
 
     AuthUser:
       type: object
@@ -770,3 +853,25 @@ components:
           type: array
           description: Selalu array, kosong (`[]`) bila tidak ada hasil.
           items: { $ref: '#/components/schemas/Pegawai' }
+
+    UploadedFile:
+      type: object
+      additionalProperties: false
+      required: [file_key, size]
+      properties:
+        file_key:
+          type: string
+          format: uuid
+          description: Nama file sementara yang dibuat server (UUID v4).
+        size:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Ukuran file dalam byte.
+
+    UploadResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/UploadedFile' }
